@@ -353,11 +353,31 @@ def scrape_photo_group():
         print(f'  Search box clicked: {search_clicked}')
         time.sleep(2)
 
-        # Type group name
-        search_box = wb.web_browser.find_element(
-            By.CSS_SELECTOR, "div[contenteditable='true'][data-tab='3']"
-        )
-        search_box.clear()
+        # Type group name - Try multiple selectors for robustness
+        search_box = None
+        selectors_to_try = [
+            ("div[contenteditable='true'][data-tab='3']", By.CSS_SELECTOR),
+            ("div[role='textbox'][data-tab='3']", By.CSS_SELECTOR),
+            ("//input[@type='text']", By.XPATH),
+            ("input[type='text']", By.CSS_SELECTOR),
+        ]
+
+        for selector, by_type in selectors_to_try:
+            try:
+                search_box = wb.web_browser.find_element(by_type, selector)
+                if search_box:
+                    break
+            except:
+                continue
+
+        if not search_box:
+            print('  [ERROR] Could not find search box element!')
+            return photo_entries
+
+        try:
+            search_box.clear()
+        except:
+            pass
         search_box.send_keys(photo_group_name)
         time.sleep(3)
 
@@ -445,7 +465,7 @@ def scrape_photo_group():
                 body_text = wb.web_browser.find_element(By.TAG_NAME, 'body').text[:500]
                 print(f'  Body text preview: {body_text[:200]}...')
             except:
-                        print(f'found {len(incoming_messages)} messages in photo group.')
+                print('  (could not retrieve body text preview)')
 
         # Use a list of processed IDs instead of a broken string timestamp comparison
         processed_ids_fp = os.path.join(sys.path[0], 'data', 'processed_photo_ids.json')
