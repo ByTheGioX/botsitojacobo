@@ -447,12 +447,32 @@ def scrape_photo_group():
             try:
                 data_id = m.get_attribute('data-id') or ''
                 classes = m.get_attribute('class') or ''
-                # In WhatsApp, incoming messages have 'false' in data-id or 'message-in' in class
-                if 'true' in data_id:
-                    continue  # Skip our own messages (data-id contains 'true' for outgoing)
+
+                # Skip our own messages - check multiple indicators:
+                # 1. 'true' in data-id (WhatsApp outgoing marker)
+                # 2. 'message-out' in class (standard WhatsApp class)
+                # 3. 'tail-out' in class (message from current user)
+                if 'true' in data_id or 'message-out' in classes or 'tail-out' in classes:
+                    print(f'  -> [DEBUG] Skipping own message (data-id={data_id}, classes={classes[:50]})')
+                    continue
+
+                # Additional safety: check if message has own avatar/sender indicator
+                try:
+                    sender_info = m.find_element(By.CSS_SELECTOR, "[data-pre-plain-text]")
+                    pre_text = sender_info.get_attribute("data-pre-plain-text") or ""
+                    # If sender is empty or not found, might be our own message
+                    if not pre_text or len(pre_text.strip()) < 3:
+                        print(f'  -> [DEBUG] Skipping message with no sender info (pre_text={pre_text})')
+                        continue
+                except:
+                    # If we can't get sender info, be safe and include it
+                    pass
+
                 incoming_messages.append(m)
-            except:
-                incoming_messages.append(m)
+            except Exception as e_filter:
+                # If there's an error filtering, skip the message to be safe
+                print(f'  -> [DEBUG] Error filtering message, skipping to be safe: {e_filter}')
+                continue
 
         print(f'\n  Found {len(incoming_messages)} incoming messages.')
 
