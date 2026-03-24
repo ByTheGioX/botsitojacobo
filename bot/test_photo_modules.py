@@ -531,7 +531,7 @@ def scrape_photo_group():
 
                 # 2. Check for image blob
                 img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
-                
+
                 # If no blob, it might be pending download (e.g. shows "468 kB")
                 if not img_elements:
                     print('  -> Image blob not found. It might be pending download.')
@@ -550,10 +550,17 @@ def scrape_photo_group():
                             msg.click()
                         except:
                             pass
-                    
+
                     # Wait for download to finish
                     time.sleep(6)
-                    img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+
+                    # RE-FETCH the message element since DOM may have changed
+                    try:
+                        msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
+                        img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+                    except:
+                        # If we can't re-fetch, try to get all images on the page
+                        img_elements = wb.web_browser.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
 
                 if not img_elements:
                     print('  -> [ERROR] Still no image blob found after attempting download. Skipping.')
