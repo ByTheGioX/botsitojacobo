@@ -551,16 +551,22 @@ def scrape_photo_group():
                         except:
                             pass
 
-                    # Wait for download to finish
-                    time.sleep(6)
-
-                    # RE-FETCH the message element since DOM may have changed
-                    try:
-                        msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
-                        img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
-                    except:
-                        # If we can't re-fetch, try to get all images on the page
-                        img_elements = wb.web_browser.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+                    # Wait for download to finish - with retry logic
+                    for attempt in range(3):
+                        time.sleep(5)  # Wait 5 sec per attempt = up to 15 seconds total
+                        # RE-FETCH the message element since DOM may have changed
+                        try:
+                            msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
+                            img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+                            if img_elements:
+                                print(f'  -> Image found after attempt {attempt + 1}!')
+                                break
+                        except:
+                            # If we can't re-fetch the message, try getting all images on the page
+                            img_elements = wb.web_browser.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+                            if img_elements:
+                                print(f'  -> Image found (global search) after attempt {attempt + 1}!')
+                                break
 
                 if not img_elements:
                     print('  -> [ERROR] Still no image blob found after attempting download. Skipping.')
@@ -571,23 +577,48 @@ def scrape_photo_group():
                 photo_path = os.path.join(downloaded_photos_dir, photo_filename)
 
                 print(f'  -> Opening media viewer to save photo...')
-                # Scroll to image and use JavaScript click to avoid "element click intercepted" error
+
+                # Get fresh reference to image element - don't use stale img_elements[0]
+                fresh_img = None
                 try:
-                    wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", img_elements[0])
-                    time.sleep(1)
-                    wb.web_browser.execute_script("arguments[0].click();", img_elements[0])
+                    fresh_img = wb.web_browser.find_element(By.CSS_SELECTOR, "img[src*='blob:']")
                 except:
-                    # Fallback to regular click
-                    img_elements[0].click()
+                    pass
+
+                if fresh_img:
+                    try:
+                        # Scroll to image and use JavaScript click to avoid "element click intercepted" error
+                        wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", fresh_img)
+                        time.sleep(1)
+                        wb.web_browser.execute_script("arguments[0].click();", fresh_img)
+                    except:
+                        # Fallback: try regular click
+                        try:
+                            fresh_img.click()
+                        except:
+                            # If both fail, try clicking by coordinates using JavaScript
+                            wb.web_browser.execute_script("document.querySelectorAll('img[src*=\"blob:\"]')[0].click();")
+                else:
+                    print('  -> [WARN] Could not find image element. Skipping image download.')
+                    continue
+
                 time.sleep(4)
 
+                # Get images from viewer OR from the original message
                 viewer_imgs = wb.web_browser.find_elements(
                     By.CSS_SELECTOR, "img[src*='blob:']"
                 )
                 if viewer_imgs:
+                    # Use the last (most recent) image
                     download_success = download_wa_image(viewer_imgs[-1], photo_path)
                 else:
-                    download_success = download_wa_image(img_elements[0], photo_path)
+                    # Fallback: try to get fresh reference again
+                    try:
+                        final_img = wb.web_browser.find_element(By.CSS_SELECTOR, "img[src*='blob:']")
+                        download_success = download_wa_image(final_img, photo_path)
+                    except:
+                        print('  -> [ERROR] Could not find image to download.')
+                        continue
 
                 wb.css_click_with_timer(
                     "span[data-icon='x'], span[data-icon='x-viewer']", 10
