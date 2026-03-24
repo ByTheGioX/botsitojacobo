@@ -56,6 +56,8 @@ log_fp = os.path.join(sys.path[0], 'data', 'logs.txt')
 photo_thank_you_template_fp = os.path.join(sys.path[0], 'data', 'photo_thank_you_template.txt')
 positive_review_template_fp = os.path.join(sys.path[0], 'data', 'positive_review_template.txt')
 negative_review_template_fp = os.path.join(sys.path[0], 'data', 'negative_review_template.txt')
+bad_caption_ids_fp = os.path.join(sys.path[0], 'data', 'bad_caption_replied_ids.json')
+failed_sends_fp = os.path.join(sys.path[0], 'data', 'failed_photo_sends.json')
 
 sala_to_places = {
     '4e': ['P1'],
@@ -65,6 +67,40 @@ sala_to_places = {
 }
 
 os.system("title Test Photo Modules")
+
+
+# ============================================================
+# HELPER: Cache for bad caption replies and failed sends
+# ============================================================
+def _load_json_set(filepath):
+    """Load a JSON list from file, return as set."""
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return set(json.load(f))
+        except:
+            pass
+    return set()
+
+
+def _save_json_set(filepath, data_set):
+    """Save a set as JSON list to file (keep last 500)."""
+    items = list(data_set)[-500:]
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(items, f)
+
+
+def _track_failed_send(send_id):
+    """Track a failed send so we don't retry it endlessly."""
+    failed = _load_json_set(failed_sends_fp)
+    failed.add(send_id)
+    _save_json_set(failed_sends_fp, failed)
+
+
+def _is_failed_send(send_id):
+    """Check if this send previously failed."""
+    failed = _load_json_set(failed_sends_fp)
+    return send_id in failed
 
 
 # ============================================================
@@ -449,7 +485,70 @@ def scrape_photo_group():
                 # 1. Parse caption FIRST. This acts as our primary filter.
                 parsed = parse_photo_caption(msg_text)
                 if not parsed:
-                    # Not a photo caption message, but we mark it as processed so we don't check again
+                    # Check if this message has a photo (image with bad/missing caption)
+                    has_image = bool(msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']"))
+                    if not has_image:
+                        # Also check for download icon (undownloaded image)
+                        has_image = bool(msg.find_elements(By.CSS_SELECTOR, "span[data-icon='download'], span[data-icon='arrow-down']"))
+
+                    if has_image:
+                        # Photo with wrong nomenclature - reply asking for correct format
+                        bad_caption_replied = _load_json_set(bad_caption_ids_fp)
+                        if msg_id not in bad_caption_replied:
+                            print(f'\n  [MSG {idx}] Photo with BAD nomenclature detected! Replying...')
+                            try:
+                                # Long-press / right-click the message to reply
+                                ActionChains(wb.web_browser).context_click(msg).perform()
+                                time.sleep(1)
+                                # Click "Responder" / "Reply" option
+                                reply_clicked = wb.css_click_with_timer(
+                                    "div[aria-label='Responder'], div[aria-label='Reply'], li[data-animate-dropdown-item='true']:first-child",
+                                    5
+                                )
+                                if reply_clicked:
+                                    time.sleep(1)
+                                    reply_text = (
+                                        "⚠️ Esta foto no tiene el formato correcto.\n"
+                                        "Por favor reenvíala con el formato:\n\n"
+                                        "📝 *dia/mes hora sala*\n"
+                                        "Ejemplo: 24/3 19:10 csi\n"
+                                        "Varias salas: 24/3 19:10 csi/tri\n"
+                                        "Salas válidas: 4e, csi, maf, tri"
+                                    )
+                                    import pyperclip
+                                    from selenium.webdriver.common.keys import Keys
+                                    pyperclip.copy(reply_text)
+                                    time.sleep(0.5)
+                                    # Find the chat input and paste
+                                    chat_input = wb.web_browser.find_element(
+                                        By.CSS_SELECTOR, "footer div[contenteditable='true']"
+                                    )
+                                    chat_input.click()
+                                    time.sleep(0.5)
+                                    chat_input.send_keys(Keys.CONTROL, 'v')
+                                    time.sleep(1)
+                                    chat_input.send_keys(Keys.ENTER)
+                                    time.sleep(2)
+                                    print(f'  -> Replied with format instructions.')
+                                else:
+                                    print(f'  -> Could not open reply menu.')
+                                    # Close any open context menu
+                                    ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                                    time.sleep(0.5)
+                            except Exception as reply_err:
+                                print(f'  -> Error replying to bad caption: {reply_err}')
+                                try:
+                                    from selenium.webdriver.common.keys import Keys
+                                    ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                                except:
+                                    pass
+
+                            # Track that we already replied to this message
+                            bad_caption_replied.add(msg_id)
+                            _save_json_set(bad_caption_ids_fp, bad_caption_replied)
+                        else:
+                            print(f'  [MSG {idx}] Bad caption photo already replied to, skipping.')
+
                     new_processed.add(msg_id)
                     continue
 
@@ -692,11 +791,17 @@ def match_and_send_photos(photo_entries):
                     print('  -> Booking found but no WhatsApp link.')
                     continue
 
+                sent_id = f"{date_str}_{t}_{sala_label}_{matched_booking['wa_link']}"
+
                 with open(photo_sent_messages_fp, 'r') as f:
-                    sent_id = f"{date_str}_{t}_{sala_label}_{matched_booking['wa_link']}"
                     if sent_id in f.read():
                         print('  -> Already sent, skipping.')
                         continue
+
+                # Check if this send previously failed (avoid retry loop)
+                if _is_failed_send(sent_id):
+                    print('  -> Previously failed send, skipping to avoid loop.')
+                    continue
 
                 print(f'  -> Sending photo to: {matched_booking["wa_link"]}')
                 link = matched_booking['wa_link'].replace("%20", "").lower().replace("api.", "web.")
@@ -720,18 +825,8 @@ def match_and_send_photos(photo_entries):
                     import subprocess
                     import pyperclip
                     from selenium.webdriver.common.keys import Keys
-                    
-                    # 1. Click main chat area to focus it
-                    try:
-                        chat_input = wb.web_browser.find_element(
-                            By.CSS_SELECTOR, "footer div[contenteditable='true']"
-                        )
-                        chat_input.click()
-                    except:
-                        pass
-                    time.sleep(1)
-                    
-                    # 2. Copy image to Windows clipboard via PowerShell
+
+                    # 1. Copy image to Windows clipboard via PowerShell FIRST (before focusing browser)
                     print("  -> Copying image to OS clipboard...")
                     photo_ps_path = os.path.abspath(photo_path).replace("\\", "/")
                     ps_script = f"""
@@ -743,13 +838,49 @@ $img.Dispose()
 """
                     subprocess.run(["powershell", "-STA", "-command", ps_script], check=True)
 
-                    # 3. Paste image into WhatsApp chat
-                    print("  -> Pasting image into WhatsApp...")
+                    # 2. Re-focus browser window (PowerShell stole focus)
+                    wb.web_browser.switch_to.window(wb.web_browser.current_window_handle)
                     time.sleep(1)
-                    wb.web_browser.switch_to.active_element.send_keys(Keys.CONTROL, 'v')
+
+                    # 3. Click chat input to ensure it's focused and interactable
+                    chat_input = None
+                    for selector in [
+                        "footer div[contenteditable='true']",
+                        "div[contenteditable='true'][data-tab]",
+                        "div[title='Escribe un mensaje aquí']",
+                        "div[title='Type a message']"
+                    ]:
+                        try:
+                            chat_input = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
+                            wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", chat_input)
+                            time.sleep(0.5)
+                            chat_input.click()
+                            break
+                        except:
+                            continue
+
+                    if not chat_input:
+                        print("  [WARN] Could not find chat input, trying active element...")
+
+                    time.sleep(1)
+
+                    # 4. Paste image into WhatsApp chat
+                    print("  -> Pasting image into WhatsApp...")
+                    try:
+                        if chat_input:
+                            chat_input.send_keys(Keys.CONTROL, 'v')
+                        else:
+                            wb.web_browser.switch_to.active_element.send_keys(Keys.CONTROL, 'v')
+                    except Exception as paste_err:
+                        print(f"  [WARN] First paste attempt failed: {paste_err}")
+                        # Fallback: use ActionChains
+                        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
 
                 except Exception as e:
                     print(f'  [ERROR] Failed to paste image: {e}')
+                    # Track this as a failed send
+                    failed_send_id = f"{date_str}_{t}_{sala_label}_{matched_booking['wa_link']}"
+                    _track_failed_send(failed_send_id)
                     continue
 
                 print("  -> Waiting for image preview overlay...")
@@ -781,18 +912,19 @@ $img.Dispose()
                 if wb.elem_wait('div.message-out'):
                     print('  -> [OK] Photo with caption sent!')
                     time.sleep(10)
+
+                    with open(photo_sent_messages_fp, 'a') as f:
+                        f.write(sent_id + '\n')
+
+                    pending.append({
+                        'wa_link': matched_booking['wa_link'],
+                        'timestamp_sent': datetime.datetime.now().isoformat(),
+                        'booking_code': f"{date_str}_{t}_{sala_label}",
+                        'booking_date': matched_booking.get('booking_date', '')
+                    })
                 else:
-                    print('  -> [FAIL] Photo NOT sent.')
-
-                with open(photo_sent_messages_fp, 'a') as f:
-                    f.write(sent_id + '\n')
-
-                pending.append({
-                    'wa_link': matched_booking['wa_link'],
-                    'timestamp_sent': datetime.datetime.now().isoformat(),
-                    'booking_code': f"{date_str}_{t}_{sala_label}",
-                    'booking_date': matched_booking.get('booking_date', '')
-                })
+                    print('  -> [FAIL] Photo NOT sent. Tracking as failed.')
+                    _track_failed_send(sent_id)
 
         json.dump(pending, open(pending_replies_fp, 'w'), indent=2)
         print(f'\n========== MODULE 2 DONE: {len(pending)} pending replies ==========')
