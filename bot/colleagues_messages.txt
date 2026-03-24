@@ -1,0 +1,20 @@
+[
+ "Dom 22 Mar###11:40 Csi Ex(*5-10*) (*adultos*)  ",
+ "Vie 20 Mar###19:00 Maf Ex(2-5) (*15 a\u00f1os*) PAGADO ",
+ "Sab 21 Mar###19:10 Tri1 Ex(2-5) (*adultos*)  ",
+ "Dom 22 Mar###19:00 4e Ex(*5-10*) (*familia*)  ",
+ "Vie 20 Mar###17:30 4e  (*11 a\u00f1os*)  ",
+ "Sab 21 Mar###16:10 Tri1 Ex(2-5) (*adultos*)  ",
+ "Sab 21 Mar###17:40 Csi  (no)  (Eq2)",
+ "Sab 21 Mar###17:30 Maf  (no)  (Eq 1 dep20\u20ac)",
+ "Sab 21 Mar###13:10 Csi  (*10 a\u00f1os*)  (Eq2)",
+ "Sab 21 Mar###13:00 4e  (*10 a\u00f1os*)  (Eq1)",
+ "Sab 21 Mar###19:10 Csi Ex(2-5) (*adultos*)  ",
+ "Sab 21 Mar###20:30 4e Ex(Nada) (*familia*)  ",
+ "Sab 21 Mar###19:00 4e  (*12 a\u00f1os*)  ",
+ "Sab 21 Mar###17:30 4e Ex(2-5) (*13 a\u00f1os*)  ",
+ "Sab 21 Mar###11:40 Csi  (no)  (Dep12\u20ac)",
+ "Dom 22 Mar###13:00 4e Ex(Nada) (*adultos*)  (Dep20\u20ac)",
+ "Dom 22 Mar###17:40 Csi  (*10 a\u00f1os*)  (Eq2)",
+ "Dom 22 Mar###17:30 4e  (*10 a\u00f1os*)  (Eq1)"
+]
