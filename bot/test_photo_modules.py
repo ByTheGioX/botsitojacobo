@@ -458,6 +458,10 @@ def scrape_photo_group():
         found_new = False
         new_processed = set()
 
+        # Collect bad caption message IDs to reply AFTER processing all good photos
+        # (replying in the group refreshes the DOM and makes other elements stale)
+        bad_caption_msg_ids = []
+
         for idx, msg in enumerate(incoming_messages):
             try:
                 # 0. Get unique message ID
@@ -488,66 +492,14 @@ def scrape_photo_group():
                     # Check if this message has a photo (image with bad/missing caption)
                     has_image = bool(msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']"))
                     if not has_image:
-                        # Also check for download icon (undownloaded image)
                         has_image = bool(msg.find_elements(By.CSS_SELECTOR, "span[data-icon='download'], span[data-icon='arrow-down']"))
 
                     if has_image:
-                        # Photo with wrong nomenclature - reply asking for correct format
+                        # Defer reply to after all good photos are processed
                         bad_caption_replied = _load_json_set(bad_caption_ids_fp)
                         if msg_id not in bad_caption_replied:
-                            print(f'\n  [MSG {idx}] Photo with BAD nomenclature detected! Replying...')
-                            try:
-                                # Long-press / right-click the message to reply
-                                ActionChains(wb.web_browser).context_click(msg).perform()
-                                time.sleep(1)
-                                # Click "Responder" / "Reply" option
-                                reply_clicked = wb.css_click_with_timer(
-                                    "div[aria-label='Responder'], div[aria-label='Reply'], li[data-animate-dropdown-item='true']:first-child",
-                                    5
-                                )
-                                if reply_clicked:
-                                    time.sleep(1)
-                                    reply_text = (
-                                        "⚠️ Esta foto no tiene el formato correcto.\n"
-                                        "Por favor reenvíala con el formato:\n\n"
-                                        "📝 *dia/mes hora sala*\n"
-                                        "Ejemplo: 24/3 19:10 csi\n"
-                                        "Varias salas: 24/3 19:10 csi/tri\n"
-                                        "Salas válidas: 4e, csi, maf, tri"
-                                    )
-                                    import pyperclip
-                                    from selenium.webdriver.common.keys import Keys
-                                    pyperclip.copy(reply_text)
-                                    time.sleep(0.5)
-                                    # Find the chat input and paste
-                                    chat_input = wb.web_browser.find_element(
-                                        By.CSS_SELECTOR, "footer div[contenteditable='true']"
-                                    )
-                                    chat_input.click()
-                                    time.sleep(0.5)
-                                    chat_input.send_keys(Keys.CONTROL, 'v')
-                                    time.sleep(1)
-                                    chat_input.send_keys(Keys.ENTER)
-                                    time.sleep(2)
-                                    print(f'  -> Replied with format instructions.')
-                                else:
-                                    print(f'  -> Could not open reply menu.')
-                                    # Close any open context menu
-                                    ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
-                                    time.sleep(0.5)
-                            except Exception as reply_err:
-                                print(f'  -> Error replying to bad caption: {reply_err}')
-                                try:
-                                    from selenium.webdriver.common.keys import Keys
-                                    ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
-                                except:
-                                    pass
-
-                            # Track that we already replied to this message
-                            bad_caption_replied.add(msg_id)
-                            _save_json_set(bad_caption_ids_fp, bad_caption_replied)
-                        else:
-                            print(f'  [MSG {idx}] Bad caption photo already replied to, skipping.')
+                            bad_caption_msg_ids.append(msg_id)
+                            print(f'\n  [MSG {idx}] Photo with BAD nomenclature detected (will reply later).')
 
                     new_processed.add(msg_id)
                     continue
@@ -632,6 +584,84 @@ def scrape_photo_group():
                 except:
                     pass
                 continue
+
+        # Now handle deferred bad caption replies (after all good photos are processed)
+        if bad_caption_msg_ids:
+            print(f'\n--- Processing {len(bad_caption_msg_ids)} deferred bad caption replies ---')
+            # Refresh messages to get current state
+            time.sleep(2)
+            incoming_messages = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[data-id]")
+
+            for msg_id in bad_caption_msg_ids:
+                try:
+                    # Find the message by data-id
+                    msg_element = None
+                    for msg in incoming_messages:
+                        try:
+                            if msg.get_attribute('data-id') == msg_id:
+                                msg_element = msg
+                                break
+                        except:
+                            pass
+
+                    if not msg_element:
+                        print(f'  [WARN] Message {msg_id} not found in current list, skipping reply.')
+                        continue
+
+                    print(f'  -> Replying to bad caption message: {msg_id}')
+                    try:
+                        # Long-press / right-click the message to reply
+                        ActionChains(wb.web_browser).context_click(msg_element).perform()
+                        time.sleep(1)
+                        # Click "Responder" / "Reply" option
+                        reply_clicked = wb.css_click_with_timer(
+                            "div[aria-label='Responder'], div[aria-label='Reply'], li[data-animate-dropdown-item='true']:first-child",
+                            5
+                        )
+                        if reply_clicked:
+                            time.sleep(1)
+                            reply_text = (
+                                "⚠️ Esta foto no tiene el formato correcto.\n"
+                                "Por favor reenvíala con el formato:\n\n"
+                                "📝 *dia/mes hora sala*\n"
+                                "Ejemplo: 24/3 19:10 csi\n"
+                                "Varias salas: 24/3 19:10 csi/tri\n"
+                                "Salas válidas: 4e, csi, maf, tri"
+                            )
+                            import pyperclip
+                            from selenium.webdriver.common.keys import Keys
+                            pyperclip.copy(reply_text)
+                            time.sleep(0.5)
+                            # Find the chat input and paste
+                            chat_input = wb.web_browser.find_element(
+                                By.CSS_SELECTOR, "footer div[contenteditable='true']"
+                            )
+                            chat_input.click()
+                            time.sleep(0.5)
+                            chat_input.send_keys(Keys.CONTROL, 'v')
+                            time.sleep(1)
+                            chat_input.send_keys(Keys.ENTER)
+                            time.sleep(2)
+                            print(f'  -> Replied with format instructions.')
+                        else:
+                            print(f'  -> Could not open reply menu.')
+                            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                            time.sleep(0.5)
+                    except Exception as reply_err:
+                        print(f'  -> Error replying to bad caption: {reply_err}')
+                        try:
+                            from selenium.webdriver.common.keys import Keys
+                            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                        except:
+                            pass
+
+                    # Track that we already replied to this message
+                    bad_caption_replied = _load_json_set(bad_caption_ids_fp)
+                    bad_caption_replied.add(msg_id)
+                    _save_json_set(bad_caption_ids_fp, bad_caption_replied)
+
+                except Exception as e_bad_caption:
+                    print(f'  [ERROR] processing bad caption reply: {e_bad_caption}')
 
         # Save updated processed IDs
         if new_processed:
