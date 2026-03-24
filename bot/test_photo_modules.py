@@ -21,6 +21,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 import base64
 import urllib.request
 import pyautogui
+import pyperclip
+import subprocess
 
 
 # ============================================================
@@ -628,8 +630,6 @@ def scrape_photo_group():
                                 "Varias salas: 24/3 19:10 csi/tri\n"
                                 "Salas válidas: 4e, csi, maf, tri"
                             )
-                            import pyperclip
-                            from selenium.webdriver.common.keys import Keys
                             pyperclip.copy(reply_text)
                             time.sleep(0.5)
                             # Find the chat input and paste
@@ -650,7 +650,6 @@ def scrape_photo_group():
                     except Exception as reply_err:
                         print(f'  -> Error replying to bad caption: {reply_err}')
                         try:
-                            from selenium.webdriver.common.keys import Keys
                             ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
                         except:
                             pass
@@ -852,10 +851,6 @@ def match_and_send_photos(photo_entries):
                     photo_thank_you_msg = f.read().strip()
 
                 try:
-                    import subprocess
-                    import pyperclip
-                    from selenium.webdriver.common.keys import Keys
-
                     # 1. Copy image to Windows clipboard via PowerShell FIRST (before focusing browser)
                     print("  -> Copying image to OS clipboard...")
                     photo_ps_path = os.path.abspath(photo_path).replace("\\", "/")
@@ -1084,9 +1079,6 @@ def check_pending_replies():
                 print(f'  Client reply: {reply_text[:100]}')
 
                 classification = classify_reply_with_ai(reply_text)
-
-                import pyperclip
-                from selenium.webdriver.common.keys import Keys
 
                 if classification == 'POSITIVO':
                     print('  -> POSITIVE! Sending review link.')
