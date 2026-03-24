@@ -60,6 +60,7 @@ positive_review_template_fp = os.path.join(sys.path[0], 'data', 'positive_review
 negative_review_template_fp = os.path.join(sys.path[0], 'data', 'negative_review_template.txt')
 bad_caption_ids_fp = os.path.join(sys.path[0], 'data', 'bad_caption_replied_ids.json')
 failed_sends_fp = os.path.join(sys.path[0], 'data', 'failed_photo_sends.json')
+photo_feedback_fp = os.path.join(sys.path[0], 'data', 'photo_feedback_replied_ids.json')
 
 sala_to_places = {
     '4e': ['P1'],
@@ -507,6 +508,9 @@ def scrape_photo_group():
 
                 # 1. Parse caption FIRST. This acts as our primary filter.
                 parsed = parse_photo_caption(msg_text)
+                if parsed:
+                    # Add msg_id for feedback tracking
+                    parsed['msg_id'] = msg_id
                 if not parsed:
                     # Check if this message has a photo (image with bad/missing caption)
                     has_image = bool(msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']"))
@@ -617,10 +621,27 @@ def scrape_photo_group():
                         print('  -> [ERROR] Could not find image to download.')
                         continue
 
-                wb.css_click_with_timer(
-                    "span[data-icon='x'], span[data-icon='x-viewer']", 10
-                )
-                time.sleep(2)
+                # Close modal: Try ESC, then X button, then click outside
+                try:
+                    wb.web_browser.send_keys(Keys.ESCAPE)
+                    time.sleep(1)
+                except:
+                    pass
+
+                try:
+                    wb.css_click_with_timer(
+                        "span[data-icon='x'], span[data-icon='x-viewer']", 10
+                    )
+                    time.sleep(1)
+                except:
+                    pass
+
+                # Fallback: Click outside modal to close
+                try:
+                    wb.web_browser.execute_script("document.body.click();")
+                    time.sleep(1)
+                except:
+                    pass
 
                 if download_success:
                     parsed['photo_path'] = photo_path
@@ -634,10 +655,20 @@ def scrape_photo_group():
 
             except Exception as e_msg:
                 print(f'error processing message: {e_msg}')
+                # Try to close modal in case of error
+                try:
+                    wb.web_browser.send_keys(Keys.ESCAPE)
+                    time.sleep(0.5)
+                except:
+                    pass
                 try:
                     wb.css_click_with_timer(
                         "span[data-icon='x'], span[data-icon='x-viewer']", 5
                     )
+                except:
+                    pass
+                try:
+                    wb.web_browser.execute_script("document.body.click();")
                 except:
                     pass
                 continue
@@ -827,6 +858,15 @@ def match_and_send_photos(photo_entries):
             with open(photo_sent_messages_fp, 'w') as f:
                 f.write('')
 
+        # Load feedback tracking (to avoid sending duplicate responses)
+        photo_feedback_replied = _load_json_set(photo_feedback_fp)
+
+        # Track feedback for each photo in this run
+        photo_feedback = {
+            "enviadas": [],      # Fotos enviadas exitosamente
+            "no_enviadas": []    # Fotos no enviadas con motivo
+        }
+
         dates_to_scrape = set()
         for entry in photo_entries:
             dates_to_scrape.add(entry['date'])
@@ -856,6 +896,7 @@ def match_and_send_photos(photo_entries):
             bookings = bookings_by_date.get(date_str, [])
 
             for t in entry['times']:
+                msg_id = entry.get('msg_id')  # Get msg_id for feedback tracking
                 print(f'\n  Matching: date={date_str} time={t} salas={sala_label}')
 
                 matched_booking = None
@@ -869,10 +910,28 @@ def match_and_send_photos(photo_entries):
 
                 if not matched_booking:
                     print(f'  -> No matching booking found.')
+                    # Track: No se encontraron datos en Turitop
+                    if msg_id and msg_id not in photo_feedback_replied:
+                        photo_feedback["no_enviadas"].append({
+                            "msg_id": msg_id,
+                            "date": date_str,
+                            "time": t,
+                            "salas": '/'.join(salas),
+                            "motivo": "No se pudo: sin datos en Turitop"
+                        })
                     continue
 
                 if not matched_booking.get('wa_link'):
                     print('  -> Booking found but no WhatsApp link.')
+                    # Track: Sin contacto WhatsApp
+                    if msg_id and msg_id not in photo_feedback_replied:
+                        photo_feedback["no_enviadas"].append({
+                            "msg_id": msg_id,
+                            "date": date_str,
+                            "time": t,
+                            "salas": '/'.join(salas),
+                            "motivo": "No se pudo: sin contacto WhatsApp"
+                        })
                     continue
 
                 sent_id = f"{date_str}_{t}_{sala_label}_{matched_booking['wa_link']}"
@@ -880,11 +939,29 @@ def match_and_send_photos(photo_entries):
                 with open(photo_sent_messages_fp, 'r') as f:
                     if sent_id in f.read():
                         print('  -> Already sent, skipping.')
+                        # Track: Ya fue procesada
+                        if msg_id and msg_id not in photo_feedback_replied:
+                            photo_feedback["no_enviadas"].append({
+                                "msg_id": msg_id,
+                                "date": date_str,
+                                "time": t,
+                                "salas": '/'.join(salas),
+                                "motivo": "No se pudo: ya procesada anteriormente"
+                            })
                         continue
 
                 # Check if this send previously failed (avoid retry loop)
                 if _is_failed_send(sent_id):
                     print('  -> Previously failed send, skipping to avoid loop.')
+                    # Track: Envío fallido anteriormente
+                    if msg_id and msg_id not in photo_feedback_replied:
+                        photo_feedback["no_enviadas"].append({
+                            "msg_id": msg_id,
+                            "date": date_str,
+                            "time": t,
+                            "salas": '/'.join(salas),
+                            "motivo": "No se pudo: error previo al enviar"
+                        })
                     continue
 
                 print(f'  -> Sending photo to: {matched_booking["wa_link"]}')
@@ -900,6 +977,15 @@ def match_and_send_photos(photo_entries):
                 ]
                 if any(m in wb.web_browser.page_source for m in invalid_markers):
                     print('  -> Invalid WhatsApp link.')
+                    # Track: Contacto inválido
+                    if msg_id and msg_id not in photo_feedback_replied:
+                        photo_feedback["no_enviadas"].append({
+                            "msg_id": msg_id,
+                            "date": date_str,
+                            "time": t,
+                            "salas": '/'.join(salas),
+                            "motivo": "No se pudo: contacto WhatsApp inválido"
+                        })
                     continue
 
                 with open(photo_thank_you_template_fp, 'r', encoding='utf-8') as f:
@@ -1002,15 +1088,165 @@ $img.Dispose()
                         'booking_code': f"{date_str}_{t}_{sala_label}",
                         'booking_date': matched_booking.get('booking_date', '')
                     })
+
+                    # Track: Enviada exitosamente
+                    if msg_id and msg_id not in photo_feedback_replied:
+                        photo_feedback["enviadas"].append({
+                            "msg_id": msg_id,
+                            "date": date_str,
+                            "time": t,
+                            "salas": '/'.join(salas),
+                            "sent_to": matched_booking.get('booking_place', 'Cliente')
+                        })
                 else:
                     print('  -> [FAIL] Photo NOT sent. Tracking as failed.')
                     _track_failed_send(sent_id)
+                    # Track: Fallo al enviar
+                    if msg_id and msg_id not in photo_feedback_replied:
+                        photo_feedback["no_enviadas"].append({
+                            "msg_id": msg_id,
+                            "date": date_str,
+                            "time": t,
+                            "salas": '/'.join(salas),
+                            "motivo": "No se pudo: error al enviar"
+                        })
 
         json.dump(pending, open(pending_replies_fp, 'w'), indent=2)
         print(f'\n========== MODULE 2 DONE: {len(pending)} pending replies ==========')
 
+        # Return feedback for MODULE 2B
+        return photo_feedback
+
     except Exception as e:
         print(f'  [ERROR] match_and_send_photos: {e}, line: {e.__traceback__.tb_lineno}')
+        return {"enviadas": [], "no_enviadas": []}
+
+
+# ============================================================
+# MODULE 2B — Photo Feedback (React & Reply to Photos)
+# ============================================================
+
+def send_photo_feedback(photo_feedback):
+    """
+    Reacciona con 👍 a fotos enviadas exitosamente
+    Responde con motivo a fotos que no se pudieron enviar
+    """
+    try:
+        print('\n========== MODULE 2B: Sending photo feedback ==========')
+
+        if not photo_feedback["enviadas"] and not photo_feedback["no_enviadas"]:
+            print('  No feedback to send.')
+            return
+
+        # Load feedback tracking
+        photo_feedback_replied = _load_json_set(photo_feedback_fp)
+        time.sleep(2)
+
+        # Process fotos ENVIADAS - reaccionar con 👍
+        if photo_feedback["enviadas"]:
+            print(f'\n  [{len(photo_feedback["enviadas"])}] Reacting to successfully sent photos...')
+            for entry in photo_feedback["enviadas"]:
+                msg_id = entry.get("msg_id")
+                if msg_id in photo_feedback_replied:
+                    print(f'    -> {msg_id}: Already responded, skipping.')
+                    continue
+
+                try:
+                    print(f'    -> Reacting 👍 to {entry["date"]} {entry["time"]} {entry["salas"]}')
+                    msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
+
+                    # Hover to show reaction button
+                    wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", msg)
+                    time.sleep(1)
+                    wb.web_browser.execute_script("arguments[0].parentElement.classList.add('mentioned');", msg)
+                    time.sleep(1)
+
+                    # Try to find and click emoji button
+                    try:
+                        react_btn = msg.find_element(By.CSS_SELECTOR, "span[data-icon='smiley']")
+                        react_btn.click()
+                        time.sleep(1)
+
+                        # Search for thumbs up emoji (may need adjustment based on WhatsApp UI)
+                        emoji_search = wb.web_browser.find_element(By.CSS_SELECTOR, "input[placeholder*='emoji'], input[placeholder*='Busca']")
+                        if emoji_search:
+                            emoji_search.send_keys("thumbs")
+                            time.sleep(1)
+
+                        # Click first emoji result
+                        first_emoji = wb.web_browser.find_element(By.CSS_SELECTOR, "div[role='button'][data-emoji]")
+                        if first_emoji:
+                            first_emoji.click()
+                            time.sleep(1)
+                    except:
+                        # If emoji picker fails, just mark as done anyway
+                        print(f'      [WARN] Could not open emoji picker, continuing.')
+
+                    photo_feedback_replied.add(msg_id)
+                except Exception as e_react:
+                    print(f'      [ERROR] Failed to react: {e_react}')
+
+        # Process fotos NO ENVIADAS - responder con motivo
+        if photo_feedback["no_enviadas"]:
+            print(f'\n  [{len(photo_feedback["no_enviadas"])}] Replying to photos not sent...')
+            for entry in photo_feedback["no_enviadas"]:
+                msg_id = entry.get("msg_id")
+                motivo = entry.get("motivo", "No se pudo procesar")
+
+                if msg_id in photo_feedback_replied:
+                    print(f'    -> {msg_id}: Already responded, skipping.')
+                    continue
+
+                try:
+                    print(f'    -> Replying to {entry["date"]} {entry["time"]} {entry["salas"]}: {motivo}')
+                    msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
+
+                    # Scroll to message
+                    wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", msg)
+                    time.sleep(1)
+
+                    # Right-click to open context menu
+                    wb.web_browser.execute_script(
+                        "const event = new MouseEvent('contextmenu', {bubbles: true}); arguments[0].dispatchEvent(event);",
+                        msg
+                    )
+                    time.sleep(1)
+
+                    # Click "Reply" option
+                    try:
+                        reply_btn = wb.web_browser.find_element(By.CSS_SELECTOR, "div[role='menuitem'][data-text*='Reply']")
+                        reply_btn.click()
+                    except:
+                        # Fallback: press 'r' key
+                        msg.send_keys('r')
+
+                    time.sleep(1)
+
+                    # Type response
+                    reply_msg = f"❌ {motivo}"
+                    pyperclip.copy(reply_msg)
+                    time.sleep(0.5)
+
+                    chat_input = wb.web_browser.find_element(By.CSS_SELECTOR, "footer div[contenteditable='true']")
+                    chat_input.click()
+                    time.sleep(0.5)
+                    chat_input.send_keys(Keys.CONTROL, 'v')
+                    time.sleep(1)
+
+                    # Send message
+                    chat_input.send_keys(Keys.ENTER)
+                    time.sleep(2)
+
+                    photo_feedback_replied.add(msg_id)
+                except Exception as e_reply:
+                    print(f'      [ERROR] Failed to reply: {e_reply}')
+
+        # Save feedback tracking
+        _save_json_set(photo_feedback_fp, photo_feedback_replied)
+        print(f'\n========== MODULE 2B DONE ==========')
+
+    except Exception as e:
+        print(f'  [ERROR] send_photo_feedback: {e}, line: {e.__traceback__.tb_lineno}')
 
 
 # ============================================================
@@ -1264,9 +1500,14 @@ photo_entries = scrape_photo_group()
 
 # Module 2: Match and send
 if photo_entries:
-    match_and_send_photos(photo_entries)
+    photo_feedback = match_and_send_photos(photo_entries)
 else:
     print("\nNo photo entries to match — skipping Module 2.")
+    photo_feedback = {"enviadas": [], "no_enviadas": []}
+
+# Module 2B: Send feedback (react & reply)
+if photo_feedback["enviadas"] or photo_feedback["no_enviadas"]:
+    send_photo_feedback(photo_feedback)
 
 # Module 3: Check pending replies
 check_pending_replies()
