@@ -823,9 +823,9 @@ def classify_reply_with_ai(reply_text):
             classification = result['choices'][0]['message']['content'].strip().upper()
             print(f'  AI classification: {classification}')
 
-            if 'POSITIVO' in classification:
+            if 'POSITIVO' in classification or 'POSITIVE' in classification:
                 return 'POSITIVO'
-            elif 'NEGATIVO' in classification:
+            elif 'NEGATIVO' in classification or 'NEGATIVE' in classification:
                 return 'NEGATIVO'
             else:
                 return 'NEUTRAL'
@@ -890,7 +890,19 @@ def check_pending_replies():
                     updated_pending.append(entry)
                     continue
 
-                reply_text = wb.get_text(last_msg)
+                # Intentar extraer el texto real del mensaje (no metadata/timestamps)
+                reply_text = ''
+                try:
+                    span = last_msg.find_element(
+                        By.CSS_SELECTOR,
+                        "span.selectable-text, span[class*='selectable-text'], div[class*='copyable-text'] span"
+                    )
+                    reply_text = (span.get_attribute('innerText') or span.text or '').strip()
+                except Exception:
+                    pass
+                if not reply_text:
+                    reply_text = wb.get_text(last_msg)
+
                 if not reply_text or reply_text.strip() == '':
                     print('  Empty reply, keeping.')
                     updated_pending.append(entry)
