@@ -694,11 +694,11 @@ def send_message_to_group(all_booking_data):
 # ============================================================
 
 def parse_photo_caption(caption_text):
-    """Parse caption like '14/3 17:30 csi' or '14/3 17:30/40 csi'.
-    Returns dict with date, times[], sala or None if invalid."""
+    """Parse caption like '14/3 17:30 csi' or '14/3 17:30/40 csi' or '14/3 17:30 csi-maf'.
+    Returns dict with date, times[], salas[] or None if invalid."""
     caption_text = caption_text.lower().strip()
-    match = re.match(
-        r'(\d{1,2}/\d{1,2})\s+(\d{1,2}:\d{2})(?:/(\d{2}))?\s+(4e|csi|maf|tri)',
+    match = re.search(
+        r'(\d{1,2}/\d{1,2})\s+(\d{1,2}:\d{2})(?:/(\d{2}))?\s+((?:4e|csi|maf|tri)(?:-(?:4e|csi|maf|tri))*)',
         caption_text
     )
     if not match:
@@ -707,14 +707,14 @@ def parse_photo_caption(caption_text):
     date_str = match.group(1)   # "14/3"
     time1 = match.group(2)      # "17:30"
     time2_min = match.group(3)  # "40" or None
-    sala = match.group(4)       # "csi"
+    salas = match.group(4).split('-')  # ["csi"] or ["csi", "maf"]
 
     times = [time1]
     if time2_min:
         hour = time1.split(':')[0]
         times.append(f"{hour}:{time2_min}")
 
-    return {'date': date_str, 'times': times, 'sala': sala}
+    return {'date': date_str, 'times': times, 'salas': salas}
 
 
 def download_wa_image(img_element, save_path):
@@ -848,7 +848,7 @@ def scrape_photo_group():
                     
                 found_new = True
 
-                print(f'mapped caption: {parsed["date"]} {parsed["times"]} {parsed["sala"]}')
+                print(f'mapped caption: {parsed["date"]} {parsed["times"]} {"-".join(parsed["salas"])}')
                 
                 # 2. Check for image
                 img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
@@ -892,7 +892,7 @@ def scrape_photo_group():
                     parsed['photo_path'] = photo_path
                     parsed['msg_timestamp'] = msg_timestamp
                     photo_entries.append(parsed)
-                    print(f'photo entry downloaded: {parsed["date"]} {parsed["times"]} {parsed["sala"]}')
+                    print(f'photo entry downloaded: {parsed["date"]} {parsed["times"]} {"-".join(parsed["salas"])}')
                     new_processed.add(msg_id)
 
             except Exception as e_msg:
@@ -1041,14 +1041,17 @@ def match_and_send_photos(photo_entries):
 
         for entry in photo_entries:
             date_str = entry['date']
-            sala = entry['sala']
+            salas = entry['salas']
             photo_path = entry['photo_path']
-            target_places = sala_to_places.get(sala, [])
+            target_places = []
+            for s in salas:
+                target_places.extend(sala_to_places.get(s, []))
+            sala_label = '-'.join(salas)
             day_num = date_str.split('/')[0]
             bookings = bookings_by_date.get(date_str, [])
 
             for t in entry['times']:
-                print(f'matching: date={date_str} time={t} sala={sala}')
+                print(f'matching: date={date_str} time={t} salas={sala_label}')
 
                 matched_booking = None
                 for b in bookings:
@@ -1060,7 +1063,7 @@ def match_and_send_photos(photo_entries):
                         break
 
                 if not matched_booking:
-                    print(f'no matching booking for {date_str} {t} {sala}')
+                    print(f'no matching booking for {date_str} {t} {sala_label}')
                     continue
 
                 if not matched_booking.get('wa_link'):
@@ -1069,7 +1072,7 @@ def match_and_send_photos(photo_entries):
 
                 # Check if already sent
                 with open(photo_sent_messages_fp, 'r') as f:
-                    sent_id = f"{date_str}_{t}_{sala}_{matched_booking['wa_link']}"
+                    sent_id = f"{date_str}_{t}_{sala_label}_{matched_booking['wa_link']}"
                     if sent_id in f.read():
                         print('photo already sent for this booking, skipping.')
                         continue
@@ -1168,7 +1171,7 @@ $img.Dispose()
                 pending.append({
                     'wa_link': matched_booking['wa_link'],
                     'timestamp_sent': datetime.datetime.now().isoformat(),
-                    'booking_code': f"{date_str}_{t}_{sala}",
+                    'booking_code': f"{date_str}_{t}_{sala_label}",
                     'booking_date': matched_booking.get('booking_date', '')
                 })
 
