@@ -694,11 +694,12 @@ def send_message_to_group(all_booking_data):
 # ============================================================
 
 def parse_photo_caption(caption_text):
-    """Parse caption like '14/3 17:30 csi' or '14/3 17:30/40 csi' or '14/3 17:30 csi-maf'.
+    """Parse caption like '14/3 17:30 csi' or '14/3 17:30/40 csi' or '14/3 17:30 csi/maf'.
     Returns dict with date, times[], salas[] or None if invalid."""
     caption_text = caption_text.lower().strip()
+    # Format: dd/m HH:MM[/mm] sala[/sala2/sala3...]
     match = re.search(
-        r'(\d{1,2}/\d{1,2})\s+(\d{1,2}:\d{2})(?:/(\d{2}))?\s+((?:4e|csi|maf|tri)(?:-(?:4e|csi|maf|tri))*)',
+        r'(\d{1,2}/\d{1,2})\s+(\d{1,2}:\d{2})(?:/(\d{2}))?\s+((?:4e|csi|maf|tri)(?:/(?:4e|csi|maf|tri))*)',
         caption_text
     )
     if not match:
@@ -707,7 +708,7 @@ def parse_photo_caption(caption_text):
     date_str = match.group(1)   # "14/3"
     time1 = match.group(2)      # "17:30"
     time2_min = match.group(3)  # "40" or None
-    salas = match.group(4).split('-')  # ["csi"] or ["csi", "maf"]
+    salas = match.group(4).split('/')  # ["csi"] or ["csi", "maf"]
 
     times = [time1]
     if time2_min:
@@ -848,7 +849,7 @@ def scrape_photo_group():
                     
                 found_new = True
 
-                print(f'mapped caption: {parsed["date"]} {parsed["times"]} {"-".join(parsed["salas"])}')
+                print(f'mapped caption: {parsed["date"]} {parsed["times"]} {"/".join(parsed["salas"])}')
                 
                 # 2. Check for image
                 img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
@@ -876,7 +877,14 @@ def scrape_photo_group():
                 photo_filename = f"photo_{timestamp_clean}.jpg"
                 photo_path = os.path.join(downloaded_photos_dir, photo_filename)
 
-                img_elements[0].click()
+                # Scroll to image and use JavaScript click to avoid "element click intercepted" error
+                try:
+                    wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", img_elements[0])
+                    time.sleep(1)
+                    wb.web_browser.execute_script("arguments[0].click();", img_elements[0])
+                except:
+                    # Fallback to regular click
+                    img_elements[0].click()
                 time.sleep(4)
 
                 viewer_imgs = wb.web_browser.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
@@ -892,7 +900,7 @@ def scrape_photo_group():
                     parsed['photo_path'] = photo_path
                     parsed['msg_timestamp'] = msg_timestamp
                     photo_entries.append(parsed)
-                    print(f'photo entry downloaded: {parsed["date"]} {parsed["times"]} {"-".join(parsed["salas"])}')
+                    print(f'photo entry downloaded: {parsed["date"]} {parsed["times"]} {"/".join(parsed["salas"])}')
                     new_processed.add(msg_id)
 
             except Exception as e_msg:
@@ -1046,7 +1054,7 @@ def match_and_send_photos(photo_entries):
             target_places = []
             for s in salas:
                 target_places.extend(sala_to_places.get(s, []))
-            sala_label = '-'.join(salas)
+            sala_label = '/'.join(salas)
             day_num = date_str.split('/')[0]
             bookings = bookings_by_date.get(date_str, [])
 

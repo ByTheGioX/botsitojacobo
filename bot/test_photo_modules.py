@@ -240,8 +240,9 @@ class Browser:
 def parse_photo_caption(caption_text):
     caption_text = caption_text.lower().strip()
     # Use search instead of match to find the pattern anywhere in the text block
+    # Format: dd/m HH:MM[/mm] sala[/sala2/sala3...]
     match = re.search(
-        r'(\d{1,2}/\d{1,2})\s+(\d{1,2}:\d{2})(?:/(\d{2}))?\s+((?:4e|csi|maf|tri)(?:-(?:4e|csi|maf|tri))*)',
+        r'(\d{1,2}/\d{1,2})\s+(\d{1,2}:\d{2})(?:/(\d{2}))?\s+((?:4e|csi|maf|tri)(?:/(?:4e|csi|maf|tri))*)',
         caption_text
     )
     if not match:
@@ -250,7 +251,7 @@ def parse_photo_caption(caption_text):
     date_str = match.group(1)
     time1 = match.group(2)
     time2_min = match.group(3)
-    salas = match.group(4).split('-')
+    salas = match.group(4).split('/')
 
     times = [time1]
     if time2_min:
@@ -453,7 +454,7 @@ def scrape_photo_group():
                     continue
 
                 found_new = True
-                print(f'\n  [MSG {idx}] Found matching target: {parsed["date"]} {parsed["times"]} {"-".join(parsed["salas"])}')
+                print(f'\n  [MSG {idx}] Found matching target: {parsed["date"]} {parsed["times"]} {"/".join(parsed["salas"])}')
 
                 # 2. Check for image blob
                 img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
@@ -490,7 +491,14 @@ def scrape_photo_group():
                 photo_path = os.path.join(downloaded_photos_dir, photo_filename)
 
                 print(f'  -> Opening media viewer to save photo...')
-                img_elements[0].click()
+                # Scroll to image and use JavaScript click to avoid "element click intercepted" error
+                try:
+                    wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", img_elements[0])
+                    time.sleep(1)
+                    wb.web_browser.execute_script("arguments[0].click();", img_elements[0])
+                except:
+                    # Fallback to regular click
+                    img_elements[0].click()
                 time.sleep(4)
 
                 viewer_imgs = wb.web_browser.find_elements(
@@ -660,7 +668,7 @@ def match_and_send_photos(photo_entries):
             target_places = []
             for s in salas:
                 target_places.extend(sala_to_places.get(s, []))
-            sala_label = '-'.join(salas)
+            sala_label = '/'.join(salas)
             day_num = date_str.split('/')[0]
             bookings = bookings_by_date.get(date_str, [])
 
