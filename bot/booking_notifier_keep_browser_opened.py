@@ -1193,22 +1193,39 @@ def match_and_send_photos(photo_entries):
             date_str = entry['date']
             salas = entry['salas']
             photo_path = entry['photo_path']
-            target_places = []
-            for s in salas:
-                target_places.extend(sala_to_places.get(s, []))
             sala_label = '/'.join(salas)
             day_num = date_str.split('/')[0]
             bookings = bookings_by_date.get(date_str, [])
 
-            for t in entry['times']:
-                print(f'matching: date={date_str} time={t} salas={sala_label}')
+            # Track wa_links we've already sent THIS photo to, to avoid duplicates
+            # (e.g., maf/csi 16:00/10 where both bookings belong to same customer)
+            sent_wa_links_this_photo = set()
+
+            # Match each time to its corresponding sala.
+            # Caption "16:00/10 maf/csi" means: 16:00→maf, 16:10→csi
+            # If times and salas are paired (same count), each time matches its sala.
+            times = entry['times']
+
+            for time_idx, t in enumerate(times):
+                # Determine which places to search for this specific time
+                if len(times) == len(salas) and len(times) > 1:
+                    # Paired: time[i] corresponds to sala[i]
+                    specific_sala = salas[time_idx]
+                    time_target_places = sala_to_places.get(specific_sala, [])
+                    print(f'matching: date={date_str} time={t} sala={specific_sala} (paired)')
+                else:
+                    # Single time or mismatch: use all salas
+                    time_target_places = []
+                    for s in salas:
+                        time_target_places.extend(sala_to_places.get(s, []))
+                    print(f'matching: date={date_str} time={t} salas={sala_label}')
 
                 matched_booking = None
                 for b in bookings:
                     b_place = b['booking_place'].upper().replace('#', '')
                     if (b['booking_time'].strip() == t.strip() and
                             b['booking_day'].strip() == day_num.strip() and
-                            any(p.upper() in b_place for p in target_places)):
+                            any(p.upper() in b_place for p in time_target_places)):
                         matched_booking = b
                         break
 
@@ -1218,6 +1235,12 @@ def match_and_send_photos(photo_entries):
 
                 if not matched_booking.get('wa_link'):
                     print('booking found but no WhatsApp link.')
+                    continue
+
+                # Skip if we already sent this same photo to this wa_link
+                wa_link_normalized = matched_booking['wa_link'].strip().lower()
+                if wa_link_normalized in sent_wa_links_this_photo:
+                    print(f'already sent this photo to {matched_booking["wa_link"]}, skipping duplicate.')
                     continue
 
                 # Check if already sent
@@ -1441,6 +1464,7 @@ $img.Dispose()
                             pass
 
                 if send_success:
+                    sent_wa_links_this_photo.add(wa_link_normalized)
                     # Record as sent
                     with open(photo_sent_messages_fp, 'a') as f:
                         f.write(sent_id + '\n')
