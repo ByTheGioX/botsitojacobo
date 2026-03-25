@@ -1512,13 +1512,8 @@ daily_cleanup()
 photo_entries = scrape_photo_group()
 
 # Module 2: Match and send
-# Use --send flag to actually send. Default is dry-run (shows matching without sending)
-dry_run = '--send' not in sys.argv
-if dry_run:
-    print("\n*** DRY RUN MODE — pass --send flag to actually send photos ***\n")
-
 if photo_entries:
-    match_and_send_photos(photo_entries, dry_run=dry_run)
+    match_and_send_photos(photo_entries)
 else:
     print("\nNo photo entries to match — skipping Module 2.")
 
