@@ -406,7 +406,7 @@ def scrape_photo_group():
                 body_text = wb.web_browser.find_element(By.TAG_NAME, 'body').text[:500]
                 print(f'  Body text preview: {body_text[:200]}...')
             except:
-                        print(f'found {len(incoming_messages)} messages in photo group.')
+                print('  (Could not read body text)')
 
         # Use a list of processed IDs instead of a broken string timestamp comparison
         processed_ids_fp = os.path.join(sys.path[0], 'data', 'processed_photo_ids.json')
@@ -418,7 +418,6 @@ def scrape_photo_group():
             except:
                 pass
 
-        found_new = False
         new_processed = set()
 
         for idx, msg in enumerate(incoming_messages):
@@ -452,7 +451,6 @@ def scrape_photo_group():
                     new_processed.add(msg_id)
                     continue
 
-                found_new = True
                 print(f'\n  [MSG {idx}] Found matching target: {parsed["date"]} {parsed["times"]} {parsed["sala"]}')
 
                 # 2. Check for image blob
@@ -535,8 +533,8 @@ def scrape_photo_group():
                 json.dump(processed_ids, f)
             print('  -> updated processed message IDs.')
 
-        if not found_new:
-            print('  No new messages found.')
+        if not photo_entries:
+            print('  No new photo entries found.')
         print(f'\n========== MODULE 1 DONE: {len(photo_entries)} photo entries ==========')
 
     except Exception as e:
@@ -741,47 +739,53 @@ $img.Dispose()
                     print(f'  [ERROR] Failed to paste image: {e}')
                     continue
 
-                print("  -> Waiting for image preview overlay...")
-                time.sleep(6) # Important to wait for the preview dialog to fully render
-
-                # The caption box is usually auto-focused when the image preview opens.
-                print("  -> Typing caption with clipboard to preserve emojis and line breaks...")
                 try:
-                    caption_box = wb.web_browser.find_element(
-                        By.CSS_SELECTOR, 
-                        "div[aria-placeholder*='Añade'], div[aria-placeholder*='Add a caption'], div[title*='comentario']"
-                    )
-                    caption_box.click()
-                except:
-                    print("  [WARN] Could not find specific caption box, falling back to active element.")
-                    caption_box = wb.web_browser.switch_to.active_element
+                    print("  -> Waiting for image preview overlay...")
+                    time.sleep(6)  # Important to wait for the preview dialog to fully render
 
-                # Copying to clipboard and sending Ctrl+V perfectly preserves emojis and multi-line formatting in WhatsApp Web
-                pyperclip.copy(photo_thank_you_msg)
-                time.sleep(1)
-                caption_box.send_keys(Keys.CONTROL, 'v')
-                
-                time.sleep(3)
+                    # The caption box is usually auto-focused when the image preview opens.
+                    print("  -> Typing caption with clipboard to preserve emojis and line breaks...")
+                    try:
+                        caption_box = wb.web_browser.find_element(
+                            By.CSS_SELECTOR,
+                            "div[aria-placeholder*='Añade'], div[aria-placeholder*='Add a caption'], div[title*='comentario']"
+                        )
+                        caption_box.click()
+                    except:
+                        print("  [WARN] Could not find specific caption box, falling back to active element.")
+                        caption_box = wb.web_browser.switch_to.active_element
 
-                res = wb.css_click("div[aria-label=Enviar],span[data-icon='send']")
-                time.sleep(5)
+                    # Copying to clipboard and sending Ctrl+V perfectly preserves emojis and multi-line formatting in WhatsApp Web
+                    pyperclip.copy(photo_thank_you_msg)
+                    time.sleep(1)
+                    caption_box.send_keys(Keys.CONTROL, 'v')
 
-                print(f"  -> Send result: {res}")
-                if wb.elem_wait('div.message-out'):
-                    print('  -> [OK] Photo with caption sent!')
-                    time.sleep(10)
-                else:
-                    print('  -> [FAIL] Photo NOT sent.')
+                    time.sleep(3)
 
-                with open(photo_sent_messages_fp, 'a') as f:
-                    f.write(sent_id + '\n')
+                    res = wb.css_click("div[aria-label='Enviar']")
+                    time.sleep(5)
 
-                pending.append({
-                    'wa_link': matched_booking['wa_link'],
-                    'timestamp_sent': datetime.datetime.now().isoformat(),
-                    'booking_code': f"{date_str}_{t}_{sala}",
-                    'booking_date': matched_booking.get('booking_date', '')
-                })
+                    print(f"  -> Send result: {res}")
+                    if wb.elem_wait('div.message-out'):
+                        print('  -> [OK] Photo with caption sent!')
+                        time.sleep(10)
+                    else:
+                        print('  -> [FAIL] Photo NOT sent.')
+
+                    with open(photo_sent_messages_fp, 'a') as f:
+                        f.write(sent_id + '\n')
+
+                    pending.append({
+                        'wa_link': matched_booking['wa_link'],
+                        'timestamp_sent': datetime.datetime.now().isoformat(),
+                        'booking_code': f"{date_str}_{t}_{sala}",
+                        'booking_date': matched_booking.get('booking_date', '')
+                    })
+
+                except Exception as e_send:
+                    print(f'  [ERROR] Failed to send caption/photo: {e_send}')
+                    wb.css_click_with_timer("span[data-icon='x'], span[data-icon='x-viewer']", 5)
+                    continue
 
         json.dump(pending, open(pending_replies_fp, 'w'), indent=2)
         print(f'\n========== MODULE 2 DONE: {len(pending)} pending replies ==========')
@@ -876,16 +880,15 @@ def check_pending_replies():
 
                 time.sleep(3)
 
-                all_msgs = wb.web_browser.find_elements(
-                    By.CSS_SELECTOR, "div.message-in, div.message-out"
-                )
+                all_msgs = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[data-id]")
                 if len(all_msgs) == 0:
                     updated_pending.append(entry)
                     continue
 
                 last_msg = all_msgs[-1]
-                msg_classes = last_msg.get_attribute('class') or ''
-                if 'message-in' not in msg_classes:
+                last_data_id = last_msg.get_attribute('data-id') or ''
+                # Outgoing messages have 'true' in data-id (same logic as Module 1)
+                if 'true' in last_data_id:
                     print(f'  No reply yet: {entry["booking_code"]}')
                     updated_pending.append(entry)
                     continue
@@ -929,9 +932,10 @@ def check_pending_replies():
                         
                         # Use Clipboard paste to perfectly support emojis and line breaks
                         pyperclip.copy(review_msg)
-                        chat_input.send_keys(Keys.CONTROL, 'v')
+                        time.sleep(0.5)
+                        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
                         time.sleep(1)
-                        chat_input.send_keys(Keys.ENTER)
+                        ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
                         time.sleep(3)
                         print('  Review link sent.')
                     except Exception as ex:
@@ -952,9 +956,10 @@ def check_pending_replies():
                         time.sleep(0.5)
                         
                         pyperclip.copy(neg_msg)
-                        chat_input.send_keys(Keys.CONTROL, 'v')
+                        time.sleep(0.5)
+                        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
                         time.sleep(1)
-                        chat_input.send_keys(Keys.ENTER)
+                        ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
                         time.sleep(3)
                         print('  Negative response sent.')
                     except Exception as ex:
