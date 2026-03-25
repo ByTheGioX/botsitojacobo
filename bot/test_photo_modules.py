@@ -987,28 +987,39 @@ $img.Dispose()
                         print(f'  [ERROR] Failed to paste image (attempt {send_attempt}): {e}')
                         continue
 
-                    # Wait for image preview overlay and verify it appeared
-                    # Detect by the editing toolbar icons that appear in the preview
+                    # Wait for image preview overlay.
+                    # IMPORTANT: Do NOT use 'Escribe un mensaje' - that's the regular chat input
+                    # and will always match even before the preview loads.
+                    # Use preview-specific indicators: caption placeholder, toolbar icons, or
+                    # the media editor send button.
                     print("  -> Waiting for image preview overlay...")
                     preview_found = False
+                    preview_selectors = [
+                        "div[aria-placeholder*='Añade']",
+                        "div[aria-placeholder*='Add a caption']",
+                        "div[aria-placeholder*='comentario']",
+                        "div[title*='comentario']",
+                        "span[data-icon='pencil']",
+                        "span[data-icon='crop']",
+                        "span[data-icon='scissors']",
+                        "span[data-icon='text']",
+                        "span[data-icon='sticker']",
+                        "span[data-icon='send']",
+                        "span[data-icon='wds-ic-send-filled']",
+                    ]
                     for wait_i in range(15):
                         time.sleep(2)
-                        # Check multiple indicators that the image preview is open:
-                        # 1. Caption input variants (depends on WhatsApp language/version)
-                        # 2. Media editor toolbar icons (crop, draw, sticker, etc.)
-                        # 3. The send button inside the preview overlay
-                        for preview_sel in [
-                            "div[aria-placeholder*='Añade']",
-                            "div[aria-placeholder*='Add a caption']",
-                            "div[aria-placeholder*='Escribe un mensaje']",
-                            "div[title*='comentario']",
-                            "span[data-icon='pencil']",
-                            "span[data-icon='crop']",
-                            "span[data-icon='scissors']",
-                            "span[data-icon='text']",
-                            "span[data-icon='sticker']",
-                            "span[data-icon='emoji']",
-                        ]:
+                        # Count how many 'Escribe un mensaje' inputs exist:
+                        # 1 = regular chat only (no preview), 2+ = preview is open
+                        try:
+                            escribe_inputs = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[aria-placeholder*='Escribe un mensaje']")
+                            if len(escribe_inputs) >= 2:
+                                preview_found = True
+                                print(f"  -> Preview detected via duplicate 'Escribe un mensaje' inputs ({len(escribe_inputs)}) after {(wait_i+1)*2}s")
+                                break
+                        except:
+                            pass
+                        for preview_sel in preview_selectors:
                             try:
                                 found = wb.web_browser.find_elements(By.CSS_SELECTOR, preview_sel)
                                 if found:
@@ -1029,12 +1040,15 @@ $img.Dispose()
                             pass
                         continue
 
+                    # Find the caption box inside the preview overlay.
+                    # When preview is open, there are 2 'Escribe un mensaje' inputs -
+                    # the second one (index 1) is the caption box.
                     print("  -> Typing caption with clipboard to preserve emojis and line breaks...")
                     caption_box = None
                     for cap_sel in [
                         "div[aria-placeholder*='Añade']",
                         "div[aria-placeholder*='Add a caption']",
-                        "div[aria-placeholder*='Escribe un mensaje']",
+                        "div[aria-placeholder*='comentario']",
                         "div[title*='comentario']",
                     ]:
                         try:
@@ -1044,8 +1058,20 @@ $img.Dispose()
                             break
                         except:
                             continue
+                    # Fallback: if preview has multiple 'Escribe un mensaje' inputs, use the last one
                     if not caption_box:
-                        print("  [WARN] Could not find specific caption box, falling back to active element.")
+                        try:
+                            escribe_inputs = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[aria-placeholder*='Escribe un mensaje']")
+                            if len(escribe_inputs) >= 2:
+                                caption_box = escribe_inputs[-1]
+                                caption_box.click()
+                                print(f"  -> Caption box found via last 'Escribe un mensaje' (index {len(escribe_inputs)-1})")
+                            else:
+                                print(f"  -> [WARN] Only {len(escribe_inputs)} 'Escribe un mensaje' found, preview may not be open!")
+                        except:
+                            pass
+                    if not caption_box:
+                        print("  [WARN] Could not find caption box, falling back to active element.")
                         caption_box = wb.web_browser.switch_to.active_element
 
                     pyperclip.copy(photo_thank_you_msg)
