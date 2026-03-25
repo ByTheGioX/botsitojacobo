@@ -1190,6 +1190,7 @@ def match_and_send_photos(photo_entries):
         pending = json.load(open(pending_replies_fp, 'r'))
 
         for entry in photo_entries:
+          try:
             date_str = entry['date']
             salas = entry['salas']
             photo_path = entry['photo_path']
@@ -1411,7 +1412,7 @@ $img.Dispose()
                     ]:
                         try:
                             caption_box = wb.web_browser.find_element(By.CSS_SELECTOR, cap_sel)
-                            caption_box.click()
+                            wb.web_browser.execute_script("arguments[0].click();", caption_box)
                             print(f"  caption box found via '{cap_sel}'")
                             break
                         except:
@@ -1422,7 +1423,7 @@ $img.Dispose()
                             escribe_inputs = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[aria-placeholder*='Escribe un mensaje']")
                             if len(escribe_inputs) >= 2:
                                 caption_box = escribe_inputs[-1]
-                                caption_box.click()
+                                wb.web_browser.execute_script("arguments[0].click();", caption_box)
                                 print(f"  caption box found via last 'Escribe un mensaje' (index {len(escribe_inputs)-1})")
                             else:
                                 print(f"  [WARN] only {len(escribe_inputs)} 'Escribe un mensaje' found, preview may not be open!")
@@ -1434,7 +1435,7 @@ $img.Dispose()
 
                     pyperclip.copy(photo_thank_you_msg)
                     time.sleep(1)
-                    caption_box.click()
+                    wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", caption_box)
                     time.sleep(0.5)
                     ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
 
@@ -1480,6 +1481,14 @@ $img.Dispose()
                     })
                 else:
                     print(f'  photo send FAILED after all attempts for {sent_id}. Will retry next cycle.')
+          except Exception as entry_err:
+            print(f'  [ERROR] Failed processing entry: {entry_err}')
+            print(f'  Continuing with next entry...')
+            try:
+                ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                time.sleep(2)
+            except:
+                pass
 
         # Save pending replies
         json.dump(pending, open(pending_replies_fp, 'w'), indent=2)
