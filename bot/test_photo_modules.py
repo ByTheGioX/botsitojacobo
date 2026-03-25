@@ -621,27 +621,14 @@ def scrape_photo_group():
                         print('  -> [ERROR] Could not find image to download.')
                         continue
 
-                # Close modal: Try ESC, then X button, then click outside
-                try:
-                    wb.web_browser.send_keys(Keys.ESCAPE)
-                    time.sleep(1)
-                except:
-                    pass
-
+                # Close modal - just try the X button (what was working)
                 try:
                     wb.css_click_with_timer(
                         "span[data-icon='x'], span[data-icon='x-viewer']", 10
                     )
-                    time.sleep(1)
                 except:
                     pass
-
-                # Fallback: Click outside modal to close
-                try:
-                    wb.web_browser.execute_script("document.body.click();")
-                    time.sleep(1)
-                except:
-                    pass
+                time.sleep(2)
 
                 if download_success:
                     parsed['photo_path'] = photo_path
@@ -655,20 +642,10 @@ def scrape_photo_group():
 
             except Exception as e_msg:
                 print(f'error processing message: {e_msg}')
-                # Try to close modal in case of error
-                try:
-                    wb.web_browser.send_keys(Keys.ESCAPE)
-                    time.sleep(0.5)
-                except:
-                    pass
                 try:
                     wb.css_click_with_timer(
                         "span[data-icon='x'], span[data-icon='x-viewer']", 5
                     )
-                except:
-                    pass
-                try:
-                    wb.web_browser.execute_script("document.body.click();")
                 except:
                     pass
                 continue
