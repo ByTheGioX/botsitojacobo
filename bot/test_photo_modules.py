@@ -613,78 +613,82 @@ def scrape_photo_group():
 
                 download_success = False
 
-                # Strategy 1: Download directly from this message's blob image.
-                # This is more reliable than the viewer because each message
-                # has its own blob URL pointing to its specific image.
-                try:
-                    msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
-                    msg_imgs = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
-                except:
-                    msg_imgs = img_elements
+                # Strategy 1 (HD): Open viewer for full-size image.
+                # Track blob URLs before/after to identify the correct new image.
+                for viewer_attempt in range(2):
+                    try:
+                        # Re-fetch message element to avoid stale references
+                        try:
+                            msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
+                            msg_imgs = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+                        except:
+                            msg_imgs = img_elements
 
-                if msg_imgs:
-                    print(f'  -> Downloading image directly from message blob...')
+                        if not msg_imgs:
+                            break
+
+                        # Record ALL blob src URLs on the page BEFORE opening viewer
+                        existing_srcs = set()
+                        for ei in wb.web_browser.find_elements(By.CSS_SELECTOR, "img[src*='blob:']"):
+                            try:
+                                existing_srcs.add(ei.get_attribute('src'))
+                            except:
+                                pass
+
+                        print(f'  -> Opening media viewer (attempt {viewer_attempt+1})...')
+                        wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", msg_imgs[0])
+                        time.sleep(1)
+                        wb.web_browser.execute_script("arguments[0].click();", msg_imgs[0])
+                        time.sleep(5)
+
+                        # Find the NEW blob that appeared after opening viewer (= HD image)
+                        viewer_imgs = wb.web_browser.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+                        new_imgs = []
+                        for vi in viewer_imgs:
+                            try:
+                                if vi.get_attribute('src') not in existing_srcs:
+                                    new_imgs.append(vi)
+                            except:
+                                pass
+
+                        if new_imgs:
+                            print(f'  -> Found {len(new_imgs)} new blob(s) in viewer, downloading HD...')
+                            download_success = download_wa_image(new_imgs[-1], photo_path)
+                        else:
+                            # No new blob appeared; the viewer might reuse the same element
+                            # Try to find the largest visible image in the viewer area
+                            print(f'  -> No new blob found, trying largest viewer image...')
+                            for vi in reversed(viewer_imgs):
+                                download_success = download_wa_image(vi, photo_path, max_retries=1)
+                                if download_success:
+                                    break
+
+                        # Close viewer
+                        wb.css_click_with_timer("span[data-icon='x'], span[data-icon='x-viewer'], span[data-icon='back']", 5)
+                        time.sleep(2)
+
+                        if download_success:
+                            break
+                    except Exception as viewer_err:
+                        print(f'    viewer attempt {viewer_attempt+1} error: {viewer_err}')
+                        try:
+                            wb.css_click_with_timer("span[data-icon='x'], span[data-icon='x-viewer']", 5)
+                            time.sleep(1)
+                        except:
+                            pass
+
+                # Strategy 2 (fallback): Download from message blob directly
+                if not download_success:
+                    print(f'  -> Viewer failed, trying direct message blob download...')
+                    try:
+                        msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
+                        msg_imgs = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+                    except:
+                        msg_imgs = img_elements
                     for img_el in msg_imgs:
                         download_success = download_wa_image(img_el, photo_path)
                         if download_success:
                             break
-
-                # Strategy 2: If direct download failed (e.g. thumbnail too small),
-                # open viewer for full-size image
-                if not download_success:
-                    for viewer_attempt in range(2):
-                        try:
-                            try:
-                                msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
-                                msg_imgs = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
-                            except:
-                                pass
-
-                            if not msg_imgs:
-                                break
-
-                            # Record existing blob srcs BEFORE opening viewer
-                            existing_srcs = set()
-                            for ei in wb.web_browser.find_elements(By.CSS_SELECTOR, "img[src*='blob:']"):
-                                try:
-                                    existing_srcs.add(ei.get_attribute('src'))
-                                except:
-                                    pass
-
-                            print(f'  -> Opening media viewer (attempt {viewer_attempt+1})...')
-                            wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", msg_imgs[0])
-                            time.sleep(1)
-                            wb.web_browser.execute_script("arguments[0].click();", msg_imgs[0])
-                            time.sleep(5)
-
-                            # Find the NEW blob image that appeared (the full-size one)
-                            viewer_imgs = wb.web_browser.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
-                            new_imgs = []
-                            for vi in viewer_imgs:
-                                try:
-                                    if vi.get_attribute('src') not in existing_srcs:
-                                        new_imgs.append(vi)
-                                except:
-                                    pass
-
-                            if new_imgs:
-                                download_success = download_wa_image(new_imgs[-1], photo_path)
-                            elif viewer_imgs:
-                                download_success = download_wa_image(viewer_imgs[-1], photo_path, max_retries=1)
-
-                            # Close viewer
-                            wb.css_click_with_timer("span[data-icon='x'], span[data-icon='x-viewer'], span[data-icon='back']", 5)
-                            time.sleep(2)
-
-                            if download_success:
-                                break
-                        except Exception as viewer_err:
-                            print(f'    viewer attempt {viewer_attempt+1} error: {viewer_err}')
-                            try:
-                                wb.css_click_with_timer("span[data-icon='x'], span[data-icon='x-viewer']", 5)
-                                time.sleep(1)
-                            except:
-                                pass
 
                 if download_success:
                     parsed['photo_path'] = photo_path
