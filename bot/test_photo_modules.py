@@ -1024,15 +1024,36 @@ $img.Dispose()
                         continue
 
                     # Wait for image preview overlay and verify it appeared
+                    # Detect by the editing toolbar icons that appear in the preview
                     print("  -> Waiting for image preview overlay...")
                     preview_found = False
                     for wait_i in range(15):
                         time.sleep(2)
-                        previews = wb.web_browser.find_elements(By.CSS_SELECTOR,
-                            "div[aria-placeholder*='Añade'], div[aria-placeholder*='Add a caption'], div[title*='comentario']")
-                        if previews:
-                            preview_found = True
-                            print(f"  -> Preview appeared after {(wait_i+1)*2}s")
+                        # Check multiple indicators that the image preview is open:
+                        # 1. Caption input variants (depends on WhatsApp language/version)
+                        # 2. Media editor toolbar icons (crop, draw, sticker, etc.)
+                        # 3. The send button inside the preview overlay
+                        for preview_sel in [
+                            "div[aria-placeholder*='Añade']",
+                            "div[aria-placeholder*='Add a caption']",
+                            "div[aria-placeholder*='Escribe un mensaje']",
+                            "div[title*='comentario']",
+                            "span[data-icon='pencil']",
+                            "span[data-icon='crop']",
+                            "span[data-icon='scissors']",
+                            "span[data-icon='text']",
+                            "span[data-icon='sticker']",
+                            "span[data-icon='emoji']",
+                        ]:
+                            try:
+                                found = wb.web_browser.find_elements(By.CSS_SELECTOR, preview_sel)
+                                if found:
+                                    preview_found = True
+                                    print(f"  -> Preview detected via '{preview_sel}' after {(wait_i+1)*2}s")
+                                    break
+                            except:
+                                continue
+                        if preview_found:
                             break
 
                     if not preview_found:
@@ -1045,13 +1066,21 @@ $img.Dispose()
                         continue
 
                     print("  -> Typing caption with clipboard to preserve emojis and line breaks...")
-                    try:
-                        caption_box = wb.web_browser.find_element(
-                            By.CSS_SELECTOR,
-                            "div[aria-placeholder*='Añade'], div[aria-placeholder*='Add a caption'], div[title*='comentario']"
-                        )
-                        caption_box.click()
-                    except:
+                    caption_box = None
+                    for cap_sel in [
+                        "div[aria-placeholder*='Añade']",
+                        "div[aria-placeholder*='Add a caption']",
+                        "div[aria-placeholder*='Escribe un mensaje']",
+                        "div[title*='comentario']",
+                    ]:
+                        try:
+                            caption_box = wb.web_browser.find_element(By.CSS_SELECTOR, cap_sel)
+                            caption_box.click()
+                            print(f"  -> Caption box found via '{cap_sel}'")
+                            break
+                        except:
+                            continue
+                    if not caption_box:
                         print("  [WARN] Could not find specific caption box, falling back to active element.")
                         caption_box = wb.web_browser.switch_to.active_element
 
