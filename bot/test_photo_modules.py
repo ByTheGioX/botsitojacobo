@@ -491,8 +491,11 @@ def scrape_photo_group():
 
         # Use a list of processed IDs instead of a broken string timestamp comparison
         processed_ids_fp = os.path.join(sys.path[0], 'data', 'processed_photo_ids.json')
+        reprocess = '--reprocess' in sys.argv
         processed_ids = []
-        if os.path.exists(processed_ids_fp):
+        if reprocess:
+            print('  [--reprocess] Ignoring processed IDs, will re-scan all messages.')
+        elif os.path.exists(processed_ids_fp):
             try:
                 with open(processed_ids_fp, 'r', encoding='utf-8') as f:
                     processed_ids = json.load(f)
@@ -830,9 +833,12 @@ def scrape_turitop_for_date(target_day, target_month):
     return bookings
 
 
-def match_and_send_photos(photo_entries):
+def match_and_send_photos(photo_entries, dry_run=False):
     try:
-        print('\n========== MODULE 2: Matching photos with bookings ==========')
+        if dry_run:
+            print('\n========== MODULE 2: Matching photos with bookings (DRY RUN - no sends) ==========')
+        else:
+            print('\n========== MODULE 2: Matching photos with bookings ==========')
 
         if not os.path.exists(photo_sent_messages_fp):
             with open(photo_sent_messages_fp, 'w') as f:
@@ -921,6 +927,13 @@ def match_and_send_photos(photo_entries):
 
                 # Note: we no longer permanently skip failed sends.
                 # Each cycle gets a fresh chance to send.
+
+                if dry_run:
+                    phone = matched_booking['wa_link'].split('phone=')[-1] if 'phone=' in matched_booking['wa_link'] else matched_booking['wa_link']
+                    print(f'  -> [DRY RUN] Would send photo to: {phone}')
+                    print(f'     Photo: {photo_path}')
+                    print(f'     Booking: {matched_booking.get("booking_place", "?")} @ {t}')
+                    continue
 
                 print(f'  -> Sending photo to: {matched_booking["wa_link"]}')
                 link = matched_booking['wa_link'].replace("%20", "").lower().replace("api.", "web.")
@@ -1497,8 +1510,13 @@ daily_cleanup()
 photo_entries = scrape_photo_group()
 
 # Module 2: Match and send
+# Use --send flag to actually send. Default is dry-run (shows matching without sending)
+dry_run = '--send' not in sys.argv
+if dry_run:
+    print("\n*** DRY RUN MODE — pass --send flag to actually send photos ***\n")
+
 if photo_entries:
-    match_and_send_photos(photo_entries)
+    match_and_send_photos(photo_entries, dry_run=dry_run)
 else:
     print("\nNo photo entries to match — skipping Module 2.")
 
