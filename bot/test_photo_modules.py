@@ -23,6 +23,7 @@ import urllib.request
 import pyautogui
 import pyperclip
 import subprocess
+import hashlib
 
 
 # ============================================================
@@ -90,19 +91,6 @@ def _save_json_set(filepath, data_set):
     items = list(data_set)[-500:]
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(items, f)
-
-
-def _track_failed_send(send_id):
-    """Track a failed send so we don't retry it endlessly."""
-    failed = _load_json_set(failed_sends_fp)
-    failed.add(send_id)
-    _save_json_set(failed_sends_fp, failed)
-
-
-def _is_failed_send(send_id):
-    """Check if this send previously failed."""
-    failed = _load_json_set(failed_sends_fp)
-    return send_id in failed
 
 
 # ============================================================
@@ -502,7 +490,6 @@ def scrape_photo_group():
             except:
                 pass
 
-        found_new = False
         new_processed = set()
 
         # Collect bad caption message IDs to reply AFTER processing all good photos
@@ -555,7 +542,6 @@ def scrape_photo_group():
                     new_processed.add(msg_id)
                     continue
 
-                found_new = True
                 print(f'\n  [MSG {idx}] Found matching target: {parsed["date"]} {parsed["times"]} {"/".join(parsed["salas"])}')
 
                 # 2. Check for image - try multiple strategies to find it
@@ -610,7 +596,6 @@ def scrape_photo_group():
 
                 # Unique filename: use index + hash of msg_id to avoid collisions
                 timestamp_clean = re.sub(r'[^\w]', '_', msg_timestamp)[:30]
-                import hashlib
                 id_hash = hashlib.md5(msg_id.encode()).hexdigest()[:8]
                 photo_filename = f"photo_{timestamp_clean}_{id_hash}.jpg"
                 photo_path = os.path.join(downloaded_photos_dir, photo_filename)
@@ -705,11 +690,11 @@ def scrape_photo_group():
                             chat_input = wb.web_browser.find_element(
                                 By.CSS_SELECTOR, "footer div[contenteditable='true']"
                             )
-                            chat_input.click()
+                            wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input)
                             time.sleep(0.5)
-                            chat_input.send_keys(Keys.CONTROL, 'v')
+                            ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
                             time.sleep(1)
-                            chat_input.send_keys(Keys.ENTER)
+                            ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
                             time.sleep(2)
                             print(f'  -> Replied with format instructions.')
                         else:
@@ -740,7 +725,7 @@ def scrape_photo_group():
                 json.dump(processed_ids, f)
             print('  -> updated processed message IDs.')
 
-        if not found_new:
+        if len(photo_entries) == 0:
             print('  No new messages found.')
         print(f'\n========== MODULE 1 DONE: {len(photo_entries)} photo entries ==========')
 
@@ -833,12 +818,9 @@ def scrape_turitop_for_date(target_day, target_month):
     return bookings
 
 
-def match_and_send_photos(photo_entries, dry_run=False):
+def match_and_send_photos(photo_entries):
     try:
-        if dry_run:
-            print('\n========== MODULE 2: Matching photos with bookings (DRY RUN - no sends) ==========')
-        else:
-            print('\n========== MODULE 2: Matching photos with bookings ==========')
+        print('\n========== MODULE 2: Matching photos with bookings ==========')
 
         if not os.path.exists(photo_sent_messages_fp):
             with open(photo_sent_messages_fp, 'w') as f:
@@ -929,13 +911,6 @@ def match_and_send_photos(photo_entries, dry_run=False):
                 # Note: we no longer permanently skip failed sends.
                 # Each cycle gets a fresh chance to send.
 
-                if dry_run:
-                    phone = matched_booking['wa_link'].split('phone=')[-1] if 'phone=' in matched_booking['wa_link'] else matched_booking['wa_link']
-                    print(f'  -> [DRY RUN] Would send photo to: {phone}')
-                    print(f'     Photo: {photo_path}')
-                    print(f'     Booking: {matched_booking.get("booking_place", "?")} @ {t}')
-                    continue
-
                 print(f'  -> Sending photo to: {matched_booking["wa_link"]}')
                 link = matched_booking['wa_link'].replace("%20", "").lower().replace("api.", "web.")
                 wb.get(link)
@@ -1022,15 +997,14 @@ $img.Dispose()
                             print("  -> All paste attempts failed, retrying send...")
                             continue
 
-                    except Exception as e:
-                        print(f'  [ERROR] Failed to paste image (attempt {send_attempt}): {e}')
+                    except Exception as paste_e:
+                        print(f'  [ERROR] Failed to paste image (attempt {send_attempt}): {paste_e}')
                         continue
 
+                    # --- Caption + Send ---
                     # Wait for image preview overlay.
-                    # IMPORTANT: Do NOT use 'Escribe un mensaje' - that's the regular chat input
-                    # and will always match even before the preview loads.
-                    # Use preview-specific indicators: caption placeholder, toolbar icons, or
-                    # the media editor send button.
+                    # IMPORTANT: Do NOT use 'Escribe un mensaje' alone - that's the regular
+                    # chat input. Use preview-specific indicators instead.
                     print("  -> Waiting for image preview overlay...")
                     preview_found = False
                     preview_selectors = [
@@ -1043,7 +1017,6 @@ $img.Dispose()
                         "span[data-icon='scissors']",
                         "span[data-icon='text']",
                         "span[data-icon='sticker']",
-                        "span[data-icon='send']",
                         "span[data-icon='wds-ic-send-filled']",
                     ]
                     for wait_i in range(15):
@@ -1092,7 +1065,6 @@ $img.Dispose()
                     ]:
                         try:
                             caption_box = wb.web_browser.find_element(By.CSS_SELECTOR, cap_sel)
-                            wb.web_browser.execute_script("arguments[0].click();", caption_box)
                             print(f"  -> Caption box found via '{cap_sel}'")
                             break
                         except:
@@ -1103,7 +1075,6 @@ $img.Dispose()
                             escribe_inputs = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[aria-placeholder*='Escribe un mensaje']")
                             if len(escribe_inputs) >= 2:
                                 caption_box = escribe_inputs[-1]
-                                wb.web_browser.execute_script("arguments[0].click();", caption_box)
                                 print(f"  -> Caption box found via last 'Escribe un mensaje' (index {len(escribe_inputs)-1})")
                             else:
                                 print(f"  -> [WARN] Only {len(escribe_inputs)} 'Escribe un mensaje' found, preview may not be open!")
@@ -1113,6 +1084,7 @@ $img.Dispose()
                         print("  [WARN] Could not find caption box, falling back to active element.")
                         caption_box = wb.web_browser.switch_to.active_element
 
+                    # Focus, click (via JS to avoid intercept), paste caption
                     pyperclip.copy(photo_thank_you_msg)
                     time.sleep(1)
                     wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", caption_box)
@@ -1121,7 +1093,16 @@ $img.Dispose()
 
                     time.sleep(3)
 
-                    res = wb.css_click("div[aria-label=Enviar],span[data-icon='send'],span[data-icon='wds-ic-send-filled']")
+                    # Click send button via JS to avoid click-intercepted errors
+                    res = False
+                    for send_sel in ["span[data-icon='send']", "span[data-icon='wds-ic-send-filled']", "div[aria-label='Enviar']"]:
+                        try:
+                            send_btn = wb.web_browser.find_element(By.CSS_SELECTOR, send_sel)
+                            wb.web_browser.execute_script("arguments[0].click();", send_btn)
+                            res = True
+                            break
+                        except:
+                            continue
                     time.sleep(5)
 
                     print(f"  -> Send result: {res}")
@@ -1401,14 +1382,14 @@ def check_pending_replies():
                         chat_input = wb.web_browser.find_element(
                             By.CSS_SELECTOR, "footer div[contenteditable='true']"
                         )
-                        chat_input.click()
+                        wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input)
                         time.sleep(0.5)
-                        
+
                         # Use Clipboard paste to perfectly support emojis and line breaks
                         pyperclip.copy(review_msg)
-                        chat_input.send_keys(Keys.CONTROL, 'v')
+                        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
                         time.sleep(1)
-                        chat_input.send_keys(Keys.ENTER)
+                        ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
                         time.sleep(3)
                         print('  Review link sent.')
                     except Exception as ex:
@@ -1425,13 +1406,13 @@ def check_pending_replies():
                         chat_input = wb.web_browser.find_element(
                             By.CSS_SELECTOR, "footer div[contenteditable='true']"
                         )
-                        chat_input.click()
+                        wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input)
                         time.sleep(0.5)
-                        
+
                         pyperclip.copy(neg_msg)
-                        chat_input.send_keys(Keys.CONTROL, 'v')
+                        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
                         time.sleep(1)
-                        chat_input.send_keys(Keys.ENTER)
+                        ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
                         time.sleep(3)
                         print('  Negative response sent.')
                     except Exception as ex:
