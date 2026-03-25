@@ -1114,7 +1114,9 @@ $img.Dispose()
 
                     pyperclip.copy(photo_thank_you_msg)
                     time.sleep(1)
-                    caption_box.send_keys(Keys.CONTROL, 'v')
+                    caption_box.click()
+                    time.sleep(0.5)
+                    ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
 
                     time.sleep(3)
 
