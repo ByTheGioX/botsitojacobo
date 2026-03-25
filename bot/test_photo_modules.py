@@ -299,34 +299,53 @@ def parse_photo_caption(caption_text):
     return {'date': date_str, 'times': times, 'salas': salas}
 
 
-def download_wa_image(img_element, save_path):
-    try:
-        base64_data = wb.web_browser.execute_async_script("""
-            var callback = arguments[arguments.length - 1];
-            var imgEl = arguments[0];
-            fetch(imgEl.src)
-                .then(function(r) { return r.blob(); })
-                .then(function(blob) {
-                    var reader = new FileReader();
-                    reader.onloadend = function() { callback(reader.result); };
-                    reader.readAsDataURL(blob);
-                })
-                .catch(function(err) { callback('ERROR:' + err.toString()); });
-        """, img_element)
+def download_wa_image(img_element, save_path, max_retries=3):
+    """Download an image from WhatsApp Web blob URL using JS fetch + base64.
+    Retries up to max_retries times on failure."""
+    for attempt in range(1, max_retries + 1):
+        try:
+            # Check that the element still has a valid blob src
+            src = img_element.get_attribute('src') or ''
+            if not src.startswith('blob:'):
+                print(f'    attempt {attempt}: img src is not a blob ({src[:50]}), skipping')
+                time.sleep(2)
+                continue
 
-        if base64_data and not base64_data.startswith('ERROR:'):
-            if ',' in base64_data:
-                base64_data = base64_data.split(',')[1]
-            with open(save_path, 'wb') as f:
-                f.write(base64.b64decode(base64_data))
-            print(f'  [OK] photo downloaded: {save_path}')
-            return True
-        else:
-            print(f'  [FAIL] download error: {base64_data}')
-            return False
-    except Exception as e:
-        print(f'  [FAIL] exception: {e}')
-        return False
+            base64_data = wb.web_browser.execute_async_script("""
+                var callback = arguments[arguments.length - 1];
+                var imgEl = arguments[0];
+                fetch(imgEl.src)
+                    .then(function(r) { return r.blob(); })
+                    .then(function(blob) {
+                        var reader = new FileReader();
+                        reader.onloadend = function() { callback(reader.result); };
+                        reader.readAsDataURL(blob);
+                    })
+                    .catch(function(err) { callback('ERROR:' + err.toString()); });
+            """, img_element)
+
+            if base64_data and not str(base64_data).startswith('ERROR:'):
+                if ',' in base64_data:
+                    base64_data = base64_data.split(',')[1]
+                raw = base64.b64decode(base64_data)
+                # Verify we got actual image data (at least 5KB to avoid thumbnails)
+                if len(raw) < 5000:
+                    print(f'    attempt {attempt}: downloaded data too small ({len(raw)} bytes), might be thumbnail. Retrying...')
+                    time.sleep(3)
+                    continue
+                with open(save_path, 'wb') as f:
+                    f.write(raw)
+                print(f'  [OK] photo downloaded ({len(raw)} bytes): {save_path}')
+                return True
+            else:
+                print(f'    attempt {attempt}: [FAIL] download error: {base64_data}')
+                time.sleep(3)
+        except Exception as e:
+            print(f'    attempt {attempt}: [FAIL] exception: {e}')
+            time.sleep(3)
+
+    print(f'  [FAIL] all {max_retries} download attempts failed for {save_path}')
+    return False
 
 
 def scrape_photo_group():
@@ -393,16 +412,22 @@ def scrape_photo_group():
         print('  Waiting for chat to load...')
         time.sleep(10)
 
-        # Scroll up to load more messages
+        # Scroll up to load more messages (load enough history to catch all photos)
         try:
-            chat_pane = wb.web_browser.find_element(
-                By.CSS_SELECTOR, "div[role='application'], div.copyable-area div[tabindex]"
-            )
-            for _ in range(3):
-                wb.web_browser.execute_script(
-                    "arguments[0].scrollTop = 0;", chat_pane
-                )
-                time.sleep(2)
+            chat_pane = None
+            for pane_sel in ["div[role='application']", "div.copyable-area div[tabindex]", "div._ajyl"]:
+                try:
+                    chat_pane = wb.web_browser.find_element(By.CSS_SELECTOR, pane_sel)
+                    break
+                except:
+                    continue
+            if chat_pane:
+                for _ in range(8):
+                    wb.web_browser.execute_script("arguments[0].scrollTop = 0;", chat_pane)
+                    time.sleep(2)
+                # Scroll back down to load all messages in view
+                wb.web_browser.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight;", chat_pane)
+                time.sleep(3)
         except:
             print('  (could not scroll up, continuing with visible messages)')
 
@@ -530,115 +555,129 @@ def scrape_photo_group():
                 found_new = True
                 print(f'\n  [MSG {idx}] Found matching target: {parsed["date"]} {parsed["times"]} {"/".join(parsed["salas"])}')
 
-                # 2. Check for image blob
+                # 2. Check for image - try multiple strategies to find it
                 img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
 
-                # If no blob, it might be pending download (e.g. shows "468 kB")
                 if not img_elements:
-                    print('  -> Image blob not found. It might be pending download.')
-                    dl_icons = msg.find_elements(By.CSS_SELECTOR, "span[data-icon='download'], span[data-icon='arrow-down']")
+                    # Strategy A: Look for download button (image not auto-downloaded)
+                    dl_icons = msg.find_elements(By.CSS_SELECTOR,
+                        "span[data-icon='download'], span[data-icon='arrow-down'], span[data-icon='media-download']")
                     if dl_icons:
                         print('  -> Found download button. Clicking to download media...')
-                        try:
-                            # Sometimes the icon is not directly clickable, click its parent
-                            parent_btn = dl_icons[0].find_element(By.XPATH, "..")
-                            parent_btn.click()
-                        except:
-                            dl_icons[0].click()
+                        for dl_icon in dl_icons:
+                            try:
+                                wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", dl_icon)
+                                time.sleep(0.5)
+                                try:
+                                    dl_icon.find_element(By.XPATH, "..").click()
+                                except:
+                                    dl_icon.click()
+                                break
+                            except:
+                                continue
+                        # Wait longer for download to complete (images can be large)
+                        for wait_round in range(15):
+                            time.sleep(2)
+                            # RE-FETCH the message element since DOM may have changed
+                            try:
+                                msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
+                            except:
+                                pass
+                            img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+                            if img_elements:
+                                print(f'  -> Image appeared after {(wait_round+1)*2}s wait')
+                                break
                     else:
+                        # Strategy B: Click the message itself to trigger load
                         print('  -> No download icon. Trying to click the message body...')
                         try:
                             msg.click()
                         except:
                             pass
-
-                    # Wait for download to finish - with retry logic
-                    for attempt in range(3):
-                        time.sleep(5)  # Wait 5 sec per attempt = up to 15 seconds total
-                        # RE-FETCH the message element since DOM may have changed
+                        time.sleep(8)
                         try:
                             msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
-                            img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
-                            if img_elements:
-                                print(f'  -> Image found after attempt {attempt + 1}!')
-                                break
                         except:
-                            # If we can't re-fetch the message, try getting all images on the page
-                            img_elements = wb.web_browser.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
-                            if img_elements:
-                                print(f'  -> Image found (global search) after attempt {attempt + 1}!')
-                                break
+                            pass
+                        img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
 
                 if not img_elements:
-                    print('  -> [ERROR] Still no image blob found after attempting download. Skipping.')
+                    print('  -> [WARN] Could not find image blob after all strategies, will retry next cycle')
                     continue
 
                 timestamp_clean = re.sub(r'[^\w]', '_', msg_timestamp)[:30]
                 photo_filename = f"photo_{timestamp_clean}.jpg"
                 photo_path = os.path.join(downloaded_photos_dir, photo_filename)
 
-                print(f'  -> Opening media viewer to save photo...')
+                download_success = False
 
-                # Get fresh reference to image element - don't use stale img_elements[0]
-                fresh_img = None
-                try:
-                    fresh_img = wb.web_browser.find_element(By.CSS_SELECTOR, "img[src*='blob:']")
-                except:
-                    pass
-
-                if fresh_img:
+                # Strategy 1: Open image viewer for full-size image
+                for viewer_attempt in range(2):
                     try:
-                        # Scroll to image and use JavaScript click to avoid "element click intercepted" error
-                        wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", fresh_img)
-                        time.sleep(1)
-                        wb.web_browser.execute_script("arguments[0].click();", fresh_img)
-                    except:
-                        # Fallback: try regular click
+                        # Re-fetch img elements in case DOM changed
                         try:
-                            fresh_img.click()
+                            msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
+                            img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
                         except:
-                            # If both fail, try clicking by coordinates using JavaScript
-                            wb.web_browser.execute_script("document.querySelectorAll('img[src*=\"blob:\"]')[0].click();")
-                else:
-                    print('  -> [WARN] Could not find image element. Skipping image download.')
-                    continue
+                            pass
 
-                time.sleep(4)
+                        if not img_elements:
+                            break
 
-                # Get images from viewer OR from the original message
-                viewer_imgs = wb.web_browser.find_elements(
-                    By.CSS_SELECTOR, "img[src*='blob:']"
-                )
-                if viewer_imgs:
-                    # Use the last (most recent) image
-                    download_success = download_wa_image(viewer_imgs[-1], photo_path)
-                else:
-                    # Fallback: try to get fresh reference again
+                        print(f'  -> Opening media viewer (attempt {viewer_attempt+1})...')
+                        wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", img_elements[0])
+                        time.sleep(1)
+                        wb.web_browser.execute_script("arguments[0].click();", img_elements[0])
+                        time.sleep(5)
+
+                        # Look for the full-size image in viewer
+                        viewer_imgs = wb.web_browser.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+                        if len(viewer_imgs) > len(img_elements):
+                            # New blob images appeared = viewer opened
+                            download_success = download_wa_image(viewer_imgs[-1], photo_path)
+
+                        if not download_success and viewer_imgs:
+                            # Try each blob image from last to first
+                            for vi in reversed(viewer_imgs):
+                                download_success = download_wa_image(vi, photo_path, max_retries=1)
+                                if download_success:
+                                    break
+
+                        # Close viewer
+                        wb.css_click_with_timer("span[data-icon='x'], span[data-icon='x-viewer'], span[data-icon='back']", 5)
+                        time.sleep(2)
+
+                        if download_success:
+                            break
+                    except Exception as viewer_err:
+                        print(f'    viewer attempt {viewer_attempt+1} error: {viewer_err}')
+                        try:
+                            wb.css_click_with_timer("span[data-icon='x'], span[data-icon='x-viewer']", 5)
+                            time.sleep(1)
+                        except:
+                            pass
+
+                # Strategy 2: If viewer failed, download directly from thumbnail blob
+                if not download_success:
+                    print(f'  -> Viewer download failed, trying direct thumbnail download...')
                     try:
-                        final_img = wb.web_browser.find_element(By.CSS_SELECTOR, "img[src*='blob:']")
-                        download_success = download_wa_image(final_img, photo_path)
+                        msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
+                        img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
                     except:
-                        print('  -> [ERROR] Could not find image to download.')
-                        continue
-
-                # Close modal - just try the X button (what was working)
-                try:
-                    wb.css_click_with_timer(
-                        "span[data-icon='x'], span[data-icon='x-viewer']", 10
-                    )
-                except:
-                    pass
-                time.sleep(2)
+                        pass
+                    for img_el in img_elements:
+                        download_success = download_wa_image(img_el, photo_path)
+                        if download_success:
+                            break
 
                 if download_success:
                     parsed['photo_path'] = photo_path
                     parsed['msg_timestamp'] = msg_timestamp
                     photo_entries.append(parsed)
                     print(f'  -> photo entry downloaded successfully!')
-                    # Successfully processed complete photo entry
                     new_processed.add(msg_id)
                 else:
-                    print(f'  -> Failed to download image.')
+                    print(f'  -> [WARN] ALL download strategies failed. Will retry next cycle.')
 
             except Exception as e_msg:
                 print(f'error processing message: {e_msg}')
@@ -891,10 +930,8 @@ def match_and_send_photos(photo_entries):
                         print('  -> Already sent, skipping.')
                         continue
 
-                # Check if this send previously failed (avoid retry loop)
-                if _is_failed_send(sent_id):
-                    print('  -> Previously failed send, skipping to avoid loop.')
-                    continue
+                # Note: we no longer permanently skip failed sends.
+                # Each cycle gets a fresh chance to send.
 
                 print(f'  -> Sending photo to: {matched_booking["wa_link"]}')
                 link = matched_booking['wa_link'].replace("%20", "").lower().replace("api.", "web.")
@@ -914,94 +951,141 @@ def match_and_send_photos(photo_entries):
                 with open(photo_thank_you_template_fp, 'r', encoding='utf-8') as f:
                     photo_thank_you_msg = f.read().strip()
 
-                try:
-                    # 1. Copy image to Windows clipboard via PowerShell FIRST (before focusing browser)
-                    print("  -> Copying image to OS clipboard...")
-                    photo_ps_path = os.path.abspath(photo_path).replace("\\", "/")
-                    ps_script = f"""
+                send_success = False
+                for send_attempt in range(1, 3):  # Try up to 2 times
+                    try:
+                        # 1. Copy image to Windows clipboard via PowerShell FIRST
+                        print(f"  -> Send attempt {send_attempt}: Copying image to OS clipboard...")
+                        photo_ps_path = os.path.abspath(photo_path).replace("\\", "/")
+                        ps_script = f"""
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 $img = [System.Drawing.Image]::FromFile('{photo_ps_path}')
 [System.Windows.Forms.Clipboard]::SetImage($img)
 $img.Dispose()
 """
-                    subprocess.run(["powershell", "-STA", "-command", ps_script], check=True)
+                        subprocess.run(["powershell", "-STA", "-command", ps_script], check=True, timeout=30)
 
-                    # 2. Re-focus browser window (PowerShell stole focus)
-                    wb.web_browser.switch_to.window(wb.web_browser.current_window_handle)
-                    time.sleep(1)
+                        # 2. Re-focus browser window (PowerShell stole focus)
+                        wb.web_browser.switch_to.window(wb.web_browser.current_window_handle)
+                        time.sleep(2)
 
-                    # 3. Click chat input to ensure it's focused and interactable
-                    chat_input = None
-                    for selector in [
-                        "footer div[contenteditable='true']",
-                        "div[contenteditable='true'][data-tab]",
-                        "div[title='Escribe un mensaje aquí']",
-                        "div[title='Type a message']"
-                    ]:
-                        try:
-                            chat_input = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
-                            wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", chat_input)
-                            time.sleep(0.5)
-                            chat_input.click()
-                            break
-                        except:
+                        # 3. Click chat input to ensure it's focused
+                        chat_input = None
+                        for selector in [
+                            "footer div[contenteditable='true']",
+                            "div[contenteditable='true'][data-tab]",
+                            "div[title='Escribe un mensaje aquí']",
+                            "div[title='Escribe un mensaje']",
+                            "div[title='Type a message']",
+                            "div[aria-placeholder='Escribe un mensaje']"
+                        ]:
+                            try:
+                                chat_input = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
+                                wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", chat_input)
+                                time.sleep(0.5)
+                                chat_input.click()
+                                break
+                            except:
+                                continue
+
+                        if not chat_input:
+                            print("  [WARN] Could not find chat input, trying active element...")
+
+                        time.sleep(1)
+
+                        # 4. Paste image into WhatsApp chat
+                        print("  -> Pasting image into WhatsApp...")
+                        paste_ok = False
+                        for paste_try in range(3):
+                            try:
+                                if chat_input:
+                                    chat_input.send_keys(Keys.CONTROL, 'v')
+                                else:
+                                    wb.web_browser.switch_to.active_element.send_keys(Keys.CONTROL, 'v')
+                                paste_ok = True
+                                break
+                            except Exception as paste_err:
+                                print(f"    paste try {paste_try+1} failed: {paste_err}")
+                                time.sleep(1)
+                                try:
+                                    ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+                                    paste_ok = True
+                                    break
+                                except:
+                                    time.sleep(2)
+
+                        if not paste_ok:
+                            print("  -> All paste attempts failed, retrying send...")
                             continue
 
-                    if not chat_input:
-                        print("  [WARN] Could not find chat input, trying active element...")
+                    except Exception as e:
+                        print(f'  [ERROR] Failed to paste image (attempt {send_attempt}): {e}')
+                        continue
 
-                    time.sleep(1)
+                    # Wait for image preview overlay and verify it appeared
+                    print("  -> Waiting for image preview overlay...")
+                    preview_found = False
+                    for wait_i in range(15):
+                        time.sleep(2)
+                        previews = wb.web_browser.find_elements(By.CSS_SELECTOR,
+                            "div[aria-placeholder*='Añade'], div[aria-placeholder*='Add a caption'], div[title*='comentario']")
+                        if previews:
+                            preview_found = True
+                            print(f"  -> Preview appeared after {(wait_i+1)*2}s")
+                            break
 
-                    # 4. Paste image into WhatsApp chat
-                    print("  -> Pasting image into WhatsApp...")
+                    if not preview_found:
+                        print(f"  -> Image preview did not appear (attempt {send_attempt}), retrying...")
+                        try:
+                            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                            time.sleep(2)
+                        except:
+                            pass
+                        continue
+
+                    print("  -> Typing caption with clipboard to preserve emojis and line breaks...")
                     try:
-                        if chat_input:
-                            chat_input.send_keys(Keys.CONTROL, 'v')
-                        else:
-                            wb.web_browser.switch_to.active_element.send_keys(Keys.CONTROL, 'v')
-                    except Exception as paste_err:
-                        print(f"  [WARN] First paste attempt failed: {paste_err}")
-                        # Fallback: use ActionChains
-                        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+                        caption_box = wb.web_browser.find_element(
+                            By.CSS_SELECTOR,
+                            "div[aria-placeholder*='Añade'], div[aria-placeholder*='Add a caption'], div[title*='comentario']"
+                        )
+                        caption_box.click()
+                    except:
+                        print("  [WARN] Could not find specific caption box, falling back to active element.")
+                        caption_box = wb.web_browser.switch_to.active_element
 
-                except Exception as e:
-                    print(f'  [ERROR] Failed to paste image: {e}')
-                    # Track this as a failed send
-                    failed_send_id = f"{date_str}_{t}_{sala_label}_{matched_booking['wa_link']}"
-                    _track_failed_send(failed_send_id)
-                    continue
+                    pyperclip.copy(photo_thank_you_msg)
+                    time.sleep(1)
+                    caption_box.send_keys(Keys.CONTROL, 'v')
 
-                print("  -> Waiting for image preview overlay...")
-                time.sleep(6) # Important to wait for the preview dialog to fully render
+                    time.sleep(3)
 
-                # The caption box is usually auto-focused when the image preview opens.
-                print("  -> Typing caption with clipboard to preserve emojis and line breaks...")
-                try:
-                    caption_box = wb.web_browser.find_element(
-                        By.CSS_SELECTOR, 
-                        "div[aria-placeholder*='Añade'], div[aria-placeholder*='Add a caption'], div[title*='comentario']"
-                    )
-                    caption_box.click()
-                except:
-                    print("  [WARN] Could not find specific caption box, falling back to active element.")
-                    caption_box = wb.web_browser.switch_to.active_element
+                    res = wb.css_click("div[aria-label=Enviar],span[data-icon='send'],span[data-icon='wds-ic-send-filled']")
+                    time.sleep(5)
 
-                # Copying to clipboard and sending Ctrl+V perfectly preserves emojis and multi-line formatting in WhatsApp Web
-                pyperclip.copy(photo_thank_you_msg)
-                time.sleep(1)
-                caption_box.send_keys(Keys.CONTROL, 'v')
-                
-                time.sleep(3)
+                    print(f"  -> Send result: {res}")
+                    # Wait for the message to appear as sent
+                    for check_i in range(10):
+                        out_msgs = wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out')
+                        if out_msgs:
+                            send_success = True
+                            break
+                        time.sleep(2)
 
-                res = wb.css_click("div[aria-label=Enviar],span[data-icon='send']")
-                time.sleep(5)
+                    if send_success:
+                        print('  -> [OK] Photo with caption sent!')
+                        time.sleep(5)
+                        break
+                    else:
+                        print(f'  -> Photo NOT confirmed as sent (attempt {send_attempt})')
+                        try:
+                            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                            time.sleep(2)
+                        except:
+                            pass
 
-                print(f"  -> Send result: {res}")
-                if wb.elem_wait('div.message-out'):
-                    print('  -> [OK] Photo with caption sent!')
-                    time.sleep(10)
-
+                if send_success:
                     with open(photo_sent_messages_fp, 'a') as f:
                         f.write(sent_id + '\n')
 
@@ -1012,8 +1096,7 @@ $img.Dispose()
                         'booking_date': matched_booking.get('booking_date', '')
                     })
                 else:
-                    print('  -> [FAIL] Photo NOT sent. Tracking as failed.')
-                    _track_failed_send(sent_id)
+                    print(f'  -> [WARN] Photo send FAILED after all attempts. Will retry next cycle.')
 
         json.dump(pending, open(pending_replies_fp, 'w'), indent=2)
         print(f'\n========== MODULE 2 DONE: {len(pending)} pending replies ==========')
