@@ -1032,42 +1032,36 @@ $img.Dispose()
                             pass
                         continue
 
-                    # --- Caption + Send ---
-                    # Wait for image preview overlay.
-                    # IMPORTANT: Do NOT use 'Escribe un mensaje' alone - that's the regular
-                    # chat input. Use preview-specific indicators instead.
+                    # --- Send photo WITHOUT caption, then send text separately ---
+                    # Wait for image preview overlay
                     print("  -> Waiting for image preview overlay...")
                     preview_found = False
-                    preview_selectors = [
-                        "div[aria-placeholder*='Añade']",
-                        "div[aria-placeholder*='Add a caption']",
-                        "div[aria-placeholder*='comentario']",
-                        "div[title*='comentario']",
+                    preview_indicators = [
                         "span[data-icon='pencil']",
                         "span[data-icon='crop']",
                         "span[data-icon='scissors']",
                         "span[data-icon='text']",
                         "span[data-icon='sticker']",
                         "span[data-icon='wds-ic-send-filled']",
+                        "div[aria-placeholder*='Añade']",
+                        "div[aria-placeholder*='Add a caption']",
                     ]
                     for wait_i in range(15):
                         time.sleep(2)
-                        # Count how many 'Escribe un mensaje' inputs exist:
-                        # 1 = regular chat only (no preview), 2+ = preview is open
+                        # Check duplicate 'Escribe un mensaje' inputs (2+ = preview open)
                         try:
                             escribe_inputs = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[aria-placeholder*='Escribe un mensaje']")
                             if len(escribe_inputs) >= 2:
                                 preview_found = True
-                                print(f"  -> Preview detected via duplicate 'Escribe un mensaje' inputs ({len(escribe_inputs)}) after {(wait_i+1)*2}s")
+                                print(f"  -> Preview detected via duplicate inputs ({len(escribe_inputs)}) after {(wait_i+1)*2}s")
                                 break
                         except:
                             pass
-                        for preview_sel in preview_selectors:
+                        for sel in preview_indicators:
                             try:
-                                found = wb.web_browser.find_elements(By.CSS_SELECTOR, preview_sel)
-                                if found:
+                                if wb.web_browser.find_elements(By.CSS_SELECTOR, sel):
                                     preview_found = True
-                                    print(f"  -> Preview detected via '{preview_sel}' after {(wait_i+1)*2}s")
+                                    print(f"  -> Preview detected via '{sel}' after {(wait_i+1)*2}s")
                                     break
                             except:
                                 continue
@@ -1083,61 +1077,66 @@ $img.Dispose()
                             pass
                         continue
 
-                    # Find the caption box inside the preview overlay.
-                    # When preview is open, there are 2 'Escribe un mensaje' inputs -
-                    # the second one (index 1) is the caption box.
-                    print("  -> Typing caption with clipboard to preserve emojis and line breaks...")
-                    caption_box = None
-                    for cap_sel in [
-                        "div[aria-placeholder*='Añade']",
-                        "div[aria-placeholder*='Add a caption']",
-                        "div[aria-placeholder*='comentario']",
-                        "div[title*='comentario']",
-                    ]:
-                        try:
-                            caption_box = wb.web_browser.find_element(By.CSS_SELECTOR, cap_sel)
-                            print(f"  -> Caption box found via '{cap_sel}'")
-                            break
-                        except:
-                            continue
-                    # Fallback: if preview has multiple 'Escribe un mensaje' inputs, use the last one
-                    if not caption_box:
-                        try:
-                            escribe_inputs = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[aria-placeholder*='Escribe un mensaje']")
-                            if len(escribe_inputs) >= 2:
-                                caption_box = escribe_inputs[-1]
-                                print(f"  -> Caption box found via last 'Escribe un mensaje' (index {len(escribe_inputs)-1})")
-                            else:
-                                print(f"  -> [WARN] Only {len(escribe_inputs)} 'Escribe un mensaje' found, preview may not be open!")
-                        except:
-                            pass
-                    if not caption_box:
-                        print("  [WARN] Could not find caption box, falling back to active element.")
-                        caption_box = wb.web_browser.switch_to.active_element
-
-                    # Focus, click (via JS to avoid intercept), paste caption
-                    pyperclip.copy(photo_thank_you_msg)
-                    time.sleep(1)
-                    wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", caption_box)
-                    time.sleep(0.5)
-                    ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
-
-                    time.sleep(3)
-
-                    # Click send button via JS to avoid click-intercepted errors
-                    res = False
+                    # Step A: Send the photo (no caption) by clicking the send button in preview
+                    print("  -> Sending photo without caption...")
+                    photo_sent = False
                     for send_sel in ["span[data-icon='send']", "span[data-icon='wds-ic-send-filled']", "div[aria-label='Enviar']"]:
                         try:
                             send_btn = wb.web_browser.find_element(By.CSS_SELECTOR, send_sel)
                             wb.web_browser.execute_script("arguments[0].click();", send_btn)
-                            res = True
+                            photo_sent = True
+                            print(f"  -> Photo send clicked via '{send_sel}'")
                             break
                         except:
                             continue
+
+                    if not photo_sent:
+                        print(f"  -> Could not click send button (attempt {send_attempt}), retrying...")
+                        try:
+                            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                            time.sleep(2)
+                        except:
+                            pass
+                        continue
+
+                    # Wait for photo to actually send (preview closes, message appears)
                     time.sleep(5)
 
-                    print(f"  -> Send result: {res}")
-                    # Wait for the message to appear as sent
+                    # Step B: Now send the thank-you text as a separate message
+                    print("  -> Sending thank-you text as separate message...")
+                    text_sent = False
+                    # Find the chat input box
+                    chat_input_2 = None
+                    for selector in [
+                        "footer div[contenteditable='true']",
+                        "div[contenteditable='true'][data-tab]",
+                        "div[title='Escribe un mensaje aquí']",
+                        "div[title='Escribe un mensaje']",
+                        "div[title='Type a message']",
+                        "div[aria-placeholder='Escribe un mensaje']"
+                    ]:
+                        try:
+                            chat_input_2 = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
+                            break
+                        except:
+                            continue
+
+                    if chat_input_2:
+                        pyperclip.copy(photo_thank_you_msg)
+                        time.sleep(0.5)
+                        wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input_2)
+                        time.sleep(0.5)
+                        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+                        time.sleep(2)
+                        # Press Enter to send the text message
+                        ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
+                        time.sleep(3)
+                        text_sent = True
+                        print("  -> Text message sent!")
+                    else:
+                        print("  -> [WARN] Could not find chat input for text message")
+
+                    # Verify message was sent
                     for check_i in range(10):
                         out_msgs = wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out')
                         if out_msgs:
@@ -1146,11 +1145,11 @@ $img.Dispose()
                         time.sleep(2)
 
                     if send_success:
-                        print('  -> [OK] Photo with caption sent!')
-                        time.sleep(5)
+                        print('  -> [OK] Photo + text sent successfully!')
+                        time.sleep(3)
                         break
                     else:
-                        print(f'  -> Photo NOT confirmed as sent (attempt {send_attempt})')
+                        print(f'  -> Messages NOT confirmed as sent (attempt {send_attempt})')
                         try:
                             ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
                             time.sleep(2)
