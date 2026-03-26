@@ -913,6 +913,25 @@ def match_and_send_photos(photo_entries):
                         matched_booking = b
                         break
 
+                # Fallback: if paired match failed, try the other salas in the caption
+                # This handles cases where the caption has the salas in wrong order
+                # e.g. caption "16:00/10 csi/maf" but Turitop has 16:00→maf, 16:10→csi
+                if not matched_booking and len(times) == len(salas) and len(times) > 1:
+                    fallback_places = []
+                    for s in salas:
+                        fallback_places.extend(sala_to_places.get(s, []))
+                    # Remove the places we already tried
+                    fallback_places = [p for p in fallback_places if p not in time_target_places]
+                    if fallback_places:
+                        for b in bookings:
+                            b_place = b['booking_place'].upper().replace('#', '')
+                            if (b['booking_time'].strip() == t.strip() and
+                                    b['booking_day'].strip() == day_num.strip() and
+                                    any(p.upper() in b_place for p in fallback_places)):
+                                matched_booking = b
+                                print(f'  -> [FALLBACK] Matched via swapped sala order for time={t}')
+                                break
+
                 if not matched_booking:
                     print(f'  -> No matching booking found.')
                     continue
