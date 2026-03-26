@@ -106,6 +106,10 @@ class Browser:
             cache_path = os.path.join(desktop_path, 'browser_cache')
             o.add_argument(f'--user-data-dir={cache_path}')
             o.add_argument('--log-level=3')
+            o.add_argument('--disable-session-crashed-bubble')
+            o.add_experimental_option('excludeSwitches', ['enable-automation'])
+            prefs = {"profile.exit_type": "Normal", "profile.exited_cleanly": True}
+            o.add_experimental_option('prefs', prefs)
 
             for attempt in range(3):
                 try:
@@ -126,6 +130,28 @@ class Browser:
         except Exception as e:
             print(str(e))
             sys.exit(1)
+
+    def dismiss_restore_dialog(self):
+        """Dismiss Chrome's 'Restore pages?' dialog if it appears."""
+        try:
+            # Try to dismiss via JavaScript - the dialog is a Chrome infobar
+            self.web_browser.execute_script("""
+                var buttons = document.querySelectorAll('button');
+                buttons.forEach(function(btn) {
+                    var text = btn.innerText.toLowerCase();
+                    if (text.includes('restore') || text.includes('cancel') || text.includes('no') || text.includes('close')) {
+                        btn.click();
+                    }
+                });
+            """)
+        except:
+            pass
+        try:
+            # Also try keyboard shortcut to dismiss Chrome infobars
+            from selenium.webdriver.common.action_chains import ActionChains
+            ActionChains(self.web_browser).send_keys(Keys.ESCAPE).perform()
+        except:
+            pass
 
     def css_click(self, element):
         for count in range(0, self.waiting_time, 1):
@@ -1494,6 +1520,9 @@ wb = Browser()
 
 print("Opening WhatsApp Web...")
 wb.get("https://web.whatsapp.com")
+# Dismiss Chrome's "Restore pages?" dialog if present
+time.sleep(2)
+wb.dismiss_restore_dialog()
 print("Waiting 30s for WhatsApp to load (scan QR if needed)...")
 time.sleep(30)
 

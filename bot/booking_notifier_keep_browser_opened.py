@@ -135,6 +135,10 @@ class Browser:
             o.add_argument(f'--user-data-dir={cache_path}')
             
             o.add_argument('--log-level=3')
+            o.add_argument('--disable-session-crashed-bubble')
+            o.add_experimental_option('excludeSwitches', ['enable-automation'])
+            prefs = {"profile.exit_type": "Normal", "profile.exited_cleanly": True}
+            o.add_experimental_option('prefs', prefs)
 
             for attempt in range(3):
                 try:
@@ -184,6 +188,26 @@ class Browser:
             self.show_error(error_func)
             print("failed to load cookies.")
             return False
+
+    def dismiss_restore_dialog(self):
+        """Dismiss Chrome's 'Restore pages?' dialog if it appears."""
+        try:
+            self.web_browser.execute_script("""
+                var buttons = document.querySelectorAll('button');
+                buttons.forEach(function(btn) {
+                    var text = btn.innerText.toLowerCase();
+                    if (text.includes('restore') || text.includes('cancel') || text.includes('no') || text.includes('close')) {
+                        btn.click();
+                    }
+                });
+            """)
+        except:
+            pass
+        try:
+            from selenium.webdriver.common.action_chains import ActionChains
+            ActionChains(self.web_browser).send_keys(Keys.ESCAPE).perform()
+        except:
+            pass
 
     def css_click(self, element):
         for count in range(0, self.waiting_time, 1):
@@ -1759,9 +1783,13 @@ while 1:
         wb.web_browser.switch_to.window(wb.web_browser.window_handles[0])
         if not("whatsapp.com" in wb.web_browser.current_url):
             wb.get("https://web.whatsapp.com")
+            time.sleep(2)
+            wb.dismiss_restore_dialog()
             time.sleep(100)
         else:
             wb.web_browser.refresh()
+            time.sleep(2)
+            wb.dismiss_restore_dialog()
             time.sleep(100)
 
 
