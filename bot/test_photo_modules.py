@@ -948,7 +948,7 @@ $img.Dispose()
                         wb.web_browser.switch_to.window(wb.web_browser.current_window_handle)
                         time.sleep(2)
 
-                        # 3. Click chat input to ensure it's focused
+                        # 3. Click chat input to ensure it's focused (use JS to avoid intercept)
                         chat_input = None
                         for selector in [
                             "footer div[contenteditable='true']",
@@ -962,7 +962,7 @@ $img.Dispose()
                                 chat_input = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
                                 wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", chat_input)
                                 time.sleep(0.5)
-                                chat_input.click()
+                                wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input)
                                 break
                             except:
                                 continue
@@ -999,6 +999,11 @@ $img.Dispose()
 
                     except Exception as paste_e:
                         print(f'  [ERROR] Failed to paste image (attempt {send_attempt}): {paste_e}')
+                        try:
+                            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                            time.sleep(1)
+                        except:
+                            pass
                         continue
 
                     # --- Caption + Send ---
