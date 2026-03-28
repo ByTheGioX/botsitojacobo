@@ -847,6 +847,150 @@ def scrape_turitop_for_date(target_day, target_month):
     return bookings
 
 
+def delete_message_from_group(msg_id):
+    """Navigate to photo group and delete a specific message ('Eliminar para mí').
+    This prevents re-sending on bot restart."""
+    try:
+        print(f'  -> Deleting message {msg_id[:30]}... from group')
+
+        # Search and open the photo group
+        search_box = wb.web_browser.find_element(By.CSS_SELECTOR, "div[contenteditable='true'][data-tab='3']")
+        wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", search_box)
+        time.sleep(1)
+        search_box.clear()
+        pyperclip.copy(photo_group_name)
+        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+        time.sleep(3)
+
+        # Click on the group
+        group_found = False
+        for sel in [
+            f"span[title='{photo_group_name}']",
+            f"span[title*='{photo_group_name.split()[0]}']"
+        ]:
+            try:
+                group_el = wb.web_browser.find_element(By.CSS_SELECTOR, sel)
+                wb.web_browser.execute_script("arguments[0].click();", group_el)
+                group_found = True
+                break
+            except:
+                continue
+
+        if not group_found:
+            print(f'  -> [WARN] Could not find group to delete message.')
+            return False
+
+        time.sleep(4)
+
+        # Find the message by data-id
+        try:
+            msg_el = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
+        except:
+            print(f'  -> Message not found in group (may already be deleted).')
+            return True  # Not an error - message is gone
+
+        # Hover over the message to reveal the dropdown arrow
+        ActionChains(wb.web_browser).move_to_element(msg_el).perform()
+        time.sleep(1)
+
+        # Click the dropdown arrow (context menu trigger)
+        down_arrow = None
+        for arrow_sel in [
+            "span[data-icon='down-context']",
+            "span[data-icon='menu']",
+            "span[data-icon='down']",
+            "div[role='button'][aria-label*='menú']",
+            "div[role='button'][aria-label*='Menu']",
+        ]:
+            try:
+                down_arrow = msg_el.find_element(By.CSS_SELECTOR, arrow_sel)
+                break
+            except:
+                continue
+
+        if not down_arrow:
+            # Try finding it in the general area after hover
+            for arrow_sel in ["span[data-icon='down-context']", "span[data-icon='menu']"]:
+                try:
+                    down_arrow = wb.web_browser.find_element(By.CSS_SELECTOR, arrow_sel)
+                    break
+                except:
+                    continue
+
+        if not down_arrow:
+            print(f'  -> [WARN] Could not find dropdown arrow for message.')
+            return False
+
+        wb.web_browser.execute_script("arguments[0].click();", down_arrow)
+        time.sleep(1)
+
+        # Click "Eliminar" / "Delete" in the context menu
+        delete_clicked = False
+        menu_items = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[role='application'] li, div[tabindex='-1'] div[role='button']")
+        for item in menu_items:
+            item_text = (item.get_attribute('innerText') or '').strip().lower()
+            if 'eliminar' in item_text or 'delete' in item_text or 'borrar' in item_text:
+                wb.web_browser.execute_script("arguments[0].click();", item)
+                delete_clicked = True
+                break
+
+        if not delete_clicked:
+            # Fallback: try aria-label on list items
+            for sel in ["li[data-animate-dropdown-item]", "div[role='listitem']"]:
+                try:
+                    items = wb.web_browser.find_elements(By.CSS_SELECTOR, sel)
+                    for item in items:
+                        txt = (item.get_attribute('innerText') or '').lower()
+                        if 'eliminar' in txt or 'delete' in txt:
+                            wb.web_browser.execute_script("arguments[0].click();", item)
+                            delete_clicked = True
+                            break
+                except:
+                    continue
+                if delete_clicked:
+                    break
+
+        if not delete_clicked:
+            print(f'  -> [WARN] Could not find "Eliminar" option in menu.')
+            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+            return False
+
+        time.sleep(2)
+
+        # Click "Eliminar para mí" / "Delete for me" in the confirmation dialog
+        confirm_clicked = False
+        for btn_sel in ["button", "div[role='button']"]:
+            try:
+                buttons = wb.web_browser.find_elements(By.CSS_SELECTOR, btn_sel)
+                for btn in buttons:
+                    btn_text = (btn.get_attribute('innerText') or '').strip().lower()
+                    if 'para mí' in btn_text or 'for me' in btn_text or 'eliminar para' in btn_text:
+                        wb.web_browser.execute_script("arguments[0].click();", btn)
+                        confirm_clicked = True
+                        break
+                if confirm_clicked:
+                    break
+            except:
+                continue
+
+        if not confirm_clicked:
+            print(f'  -> [WARN] Could not confirm "Eliminar para mí".')
+            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+            return False
+
+        time.sleep(2)
+        print(f'  -> [OK] Message deleted from group!')
+        return True
+
+    except Exception as e:
+        print(f'  -> [ERROR] delete_message_from_group: {e}')
+        try:
+            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+        except:
+            pass
+        return False
+
+
 def match_and_send_photos(photo_entries):
     try:
         print('\n========== MODULE 2: Matching photos with bookings ==========')
@@ -884,6 +1028,7 @@ def match_and_send_photos(photo_entries):
             # Track wa_links we've already sent THIS photo to, to avoid duplicates
             # (e.g., maf/csi 16:00/10 where both bookings belong to the same customer)
             sent_wa_links_this_photo = set()
+            entry_all_sends_ok = True  # Track if all sends for this entry succeeded
 
             # Match each time to its corresponding sala.
             # Caption "16:00/10 maf/csi" means: 16:00→maf, 16:10→csi
@@ -1191,6 +1336,14 @@ $img.Dispose()
                     })
                 else:
                     print(f'  -> [WARN] Photo send FAILED after all attempts. Will retry next cycle.')
+                    entry_all_sends_ok = False
+
+            # After processing all times for this entry: delete from group if all sends succeeded
+            if entry_all_sends_ok and sent_wa_links_this_photo:
+                msg_id_to_delete = entry.get('msg_id')
+                if msg_id_to_delete:
+                    print(f'\n  All sends OK for this photo. Deleting from group...')
+                    delete_message_from_group(msg_id_to_delete)
           except Exception as entry_err:
             print(f'  -> [ERROR] Failed processing entry: {entry_err}')
             print(f'     Continuing with next entry...')
