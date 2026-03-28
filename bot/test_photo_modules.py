@@ -62,6 +62,9 @@ negative_review_template_fp = os.path.join(sys.path[0], 'data', 'negative_review
 bad_caption_ids_fp = os.path.join(sys.path[0], 'data', 'bad_caption_replied_ids.json')
 failed_sends_fp = os.path.join(sys.path[0], 'data', 'failed_photo_sends.json')
 
+# Photo to send with positive review response (client can change this file)
+review_photo_fp = os.path.join(sys.path[0], 'data', 'review_photo.jpg')
+
 sala_to_places = {
     '4e': ['P1'],
     'csi': ['P2'],
@@ -1423,26 +1426,118 @@ def check_pending_replies():
                 classification = classify_reply_with_ai(reply_text)
 
                 if classification == 'POSITIVO':
-                    print('  -> POSITIVE! Sending review link.')
+                    print('  -> POSITIVE! Sending review photo + link.')
                     with open(positive_review_template_fp, 'r', encoding='utf-8') as f:
                         review_msg = f.read().strip()
 
                     try:
-                        chat_input = wb.web_browser.find_element(
-                            By.CSS_SELECTOR, "footer div[contenteditable='true']"
-                        )
-                        wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input)
-                        time.sleep(0.5)
+                        # Step 1: Send review photo if it exists
+                        if os.path.exists(review_photo_fp):
+                            print('  -> Copying review photo to clipboard...')
+                            photo_ps_path = os.path.abspath(review_photo_fp).replace("\\", "/")
+                            ps_script = f"""
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+$img = [System.Drawing.Image]::FromFile('{photo_ps_path}')
+[System.Windows.Forms.Clipboard]::SetImage($img)
+$img.Dispose()
+"""
+                            subprocess.run(["powershell", "-STA", "-command", ps_script], check=True, timeout=30)
+                            wb.web_browser.switch_to.window(wb.web_browser.current_window_handle)
+                            time.sleep(2)
 
-                        # Use Clipboard paste to perfectly support emojis and line breaks
-                        pyperclip.copy(review_msg)
-                        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
-                        time.sleep(1)
-                        ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
-                        time.sleep(3)
-                        print('  Review link sent.')
+                            # Find chat input and paste image
+                            chat_input = None
+                            for selector in [
+                                "footer div[contenteditable='true']",
+                                "div[contenteditable='true'][data-tab]",
+                                "div[aria-placeholder='Escribe un mensaje']"
+                            ]:
+                                try:
+                                    chat_input = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
+                                    wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input)
+                                    break
+                                except:
+                                    continue
+                            time.sleep(1)
+
+                            print('  -> Pasting review photo...')
+                            if chat_input:
+                                chat_input.send_keys(Keys.CONTROL, 'v')
+                            else:
+                                ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+                            time.sleep(3)
+
+                            # Wait for preview and click send (no caption)
+                            preview_found = False
+                            for wait_i in range(15):
+                                time.sleep(2)
+                                try:
+                                    escribe_inputs = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[aria-placeholder*='Escribe un mensaje']")
+                                    if len(escribe_inputs) >= 2:
+                                        preview_found = True
+                                        break
+                                except:
+                                    pass
+                                for sel in ["span[data-icon='wds-ic-send-filled']", "span[data-icon='pencil']", "span[data-icon='crop']"]:
+                                    try:
+                                        if wb.web_browser.find_elements(By.CSS_SELECTOR, sel):
+                                            preview_found = True
+                                            break
+                                    except:
+                                        continue
+                                if preview_found:
+                                    break
+
+                            if preview_found:
+                                for send_sel in ["span[data-icon='send']", "span[data-icon='wds-ic-send-filled']", "div[aria-label='Enviar']"]:
+                                    try:
+                                        send_btn = wb.web_browser.find_element(By.CSS_SELECTOR, send_sel)
+                                        wb.web_browser.execute_script("arguments[0].click();", send_btn)
+                                        print('  -> Review photo sent!')
+                                        break
+                                    except:
+                                        continue
+                                time.sleep(5)
+                            else:
+                                print('  -> [WARN] Preview not detected for review photo, skipping photo.')
+                                try:
+                                    ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                                    time.sleep(2)
+                                except:
+                                    pass
+                        else:
+                            print(f'  -> [WARN] Review photo not found at {review_photo_fp}, sending text only.')
+
+                        # Step 2: Send the review text message
+                        print('  -> Sending review text...')
+                        chat_input_2 = None
+                        for selector in [
+                            "footer div[contenteditable='true']",
+                            "div[contenteditable='true'][data-tab]",
+                            "div[aria-placeholder='Escribe un mensaje']"
+                        ]:
+                            try:
+                                chat_input_2 = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
+                                break
+                            except:
+                                continue
+
+                        if chat_input_2:
+                            wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input_2)
+                            time.sleep(0.5)
+                            pyperclip.copy(review_msg)
+                            ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+                            time.sleep(1)
+                            ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
+                            time.sleep(3)
+                            print('  -> Review text sent!')
+                        else:
+                            print('  -> [ERROR] Could not find chat input for review text.')
+                            updated_pending.append(entry)
+                            continue
                     except Exception as ex:
-                        print(f'  [ERROR] Failed to send positive review msg: {ex}')
+                        print(f'  [ERROR] Failed to send positive review: {ex}')
                         updated_pending.append(entry)
                         continue
 
