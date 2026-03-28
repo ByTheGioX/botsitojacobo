@@ -995,6 +995,8 @@ def match_and_send_photos(photo_entries):
     try:
         print('\n========== MODULE 2: Matching photos with bookings ==========')
 
+        sent_photo_msg_ids = []  # Buffer of msg_ids to delete after all modules finish
+
         if not os.path.exists(photo_sent_messages_fp):
             with open(photo_sent_messages_fp, 'w') as f:
                 f.write('')
@@ -1341,12 +1343,12 @@ $img.Dispose()
                     print(f'  -> [WARN] Photo send FAILED after all attempts. Will retry next cycle.')
                     entry_all_sends_ok = False
 
-            # After processing all times for this entry: delete from group if all sends succeeded
+            # After processing all times for this entry: buffer msg_id for later deletion
             if entry_all_sends_ok and sent_wa_links_this_photo:
                 msg_id_to_delete = entry.get('msg_id')
                 if msg_id_to_delete:
-                    print(f'\n  All sends OK for this photo. Deleting from group...')
-                    delete_message_from_group(msg_id_to_delete)
+                    sent_photo_msg_ids.append(msg_id_to_delete)
+                    print(f'\n  All sends OK for this photo. Queued for deletion after replies are processed.')
           except Exception as entry_err:
             print(f'  -> [ERROR] Failed processing entry: {entry_err}')
             print(f'     Continuing with next entry...')
@@ -1357,9 +1359,12 @@ $img.Dispose()
                 pass
         json.dump(pending, open(pending_replies_fp, 'w'), indent=2)
         print(f'\n========== MODULE 2 DONE: {len(pending)} pending replies ==========')
+        print(f'  Photos queued for deletion: {len(sent_photo_msg_ids)}')
+        return sent_photo_msg_ids
 
     except Exception as e:
         print(f'  [ERROR] match_and_send_photos: {e}, line: {e.__traceback__.tb_lineno}')
+        return []
 
 
 # ============================================================
@@ -2101,9 +2106,10 @@ daily_cleanup()
 # Module 1: Scrape photo group
 photo_entries = scrape_photo_group()
 
-# Module 2: Match and send
+# Module 2: Match and send (returns buffer of msg_ids to delete later)
+photos_to_delete = []
 if photo_entries:
-    match_and_send_photos(photo_entries)
+    photos_to_delete = match_and_send_photos(photo_entries) or []
 else:
     print("\nNo photo entries to match — skipping Module 2.")
 
@@ -2119,6 +2125,19 @@ if negative_reviews:
     dequeue_negative_review_emails(negative_reviews)
 else:
     print("\nNo negative reviews — skipping Module 5.")
+
+# Module 6: Delete sent photos from group (only after all modules are done)
+if photos_to_delete:
+    print(f'\n========== MODULE 6: Deleting {len(photos_to_delete)} sent photos from group ==========')
+    deleted_count = 0
+    for msg_id in photos_to_delete:
+        success = delete_message_from_group(msg_id)
+        if success:
+            deleted_count += 1
+        time.sleep(2)
+    print(f'\n========== MODULE 6 DONE: {deleted_count}/{len(photos_to_delete)} photos deleted ==========')
+else:
+    print("\nNo photos to delete from group — skipping Module 6.")
 
 print("\n" + "=" * 60)
 print("  ALL DONE! Press Enter to close browser and exit.")
