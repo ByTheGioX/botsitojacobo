@@ -1332,7 +1332,10 @@ $img.Dispose()
                         'wa_link': matched_booking['wa_link'],
                         'timestamp_sent': datetime.datetime.now().isoformat(),
                         'booking_code': f"{date_str}_{t}_{sala_label}",
-                        'booking_date': matched_booking.get('booking_date', '')
+                        'booking_date': matched_booking.get('booking_date', ''),
+                        'booking_day': matched_booking.get('booking_day', ''),
+                        'booking_time': matched_booking.get('booking_time', ''),
+                        'booking_place': matched_booking.get('booking_place', ''),
                     })
                 else:
                     print(f'  -> [WARN] Photo send FAILED after all attempts. Will retry next cycle.')
@@ -1502,17 +1505,19 @@ def classify_reply_with_ai(reply_text):
 
 
 def check_pending_replies():
+    """Returns list of negative review entries (with booking info) for Module 5."""
+    negative_reviews = []
     try:
         print('\n========== MODULE 3: Checking pending replies ==========')
 
         if not os.path.exists(pending_replies_fp):
             print('  No pending replies file.')
-            return
+            return negative_reviews
 
         pending = json.load(open(pending_replies_fp, 'r'))
         if len(pending) == 0:
             print('  No pending replies.')
-            return
+            return negative_reviews
 
         updated_pending = []
         now = datetime.datetime.now()
@@ -1698,7 +1703,7 @@ $img.Dispose()
                     print('  -> NEGATIVE. Sending empathy message.')
                     with open(negative_review_template_fp, 'r', encoding='utf-8') as f:
                         neg_msg = f.read().strip()
-                        
+
                     try:
                         chat_input = wb.web_browser.find_element(
                             By.CSS_SELECTOR, "footer div[contenteditable='true']"
@@ -1712,6 +1717,9 @@ $img.Dispose()
                         ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
                         time.sleep(3)
                         print('  Negative response sent.')
+                        # Accumulate for Module 5 (dequeue review email in Turitop)
+                        negative_reviews.append(entry)
+                        print(f'  -> Added to negative reviews queue for Turitop dequeue.')
                     except Exception as ex:
                         print(f'  [ERROR] Failed to send negative empathy msg: {ex}')
                         updated_pending.append(entry)
@@ -1726,9 +1734,244 @@ $img.Dispose()
 
         json.dump(updated_pending, open(pending_replies_fp, 'w'), indent=2)
         print(f'\n========== MODULE 3 DONE: {len(updated_pending)} still pending ==========')
+        if negative_reviews:
+            print(f'  -> {len(negative_reviews)} negative reviews queued for Turitop dequeue.')
+        return negative_reviews
 
     except Exception as e:
         print(f'  [ERROR] check_pending_replies: {e}, line: {e.__traceback__.tb_lineno}')
+        return negative_reviews
+
+
+# ============================================================
+# MODULE 5 — Dequeue Turitop review emails for negative reviews
+# ============================================================
+
+def dequeue_negative_review_emails(negative_entries):
+    """For each negative review, go to Turitop, find the booking,
+    click 'Acciones del Email' and select 'Desencolar el email de solicitud de opinión automática'."""
+    try:
+        print(f'\n========== MODULE 5: Dequeuing {len(negative_entries)} review emails ==========')
+
+        if not negative_entries:
+            print('  No negative reviews to process.')
+            print('========== MODULE 5 DONE ==========')
+            return
+
+        # Open Turitop in a new tab
+        wb.web_browser.execute_script("window.open('')")
+        wb.web_browser.switch_to.window(wb.web_browser.window_handles[-1])
+        wb.get("https://app.turitop.com/admin/company/P271/bookings")
+        time.sleep(5)
+
+        if "admin/login/es/" in wb.web_browser.current_url:
+            print("  [WARN] Turitop logged out! Cannot dequeue emails.")
+            wb.web_browser.close()
+            wb.web_browser.switch_to.window(wb.web_browser.window_handles[0])
+            return
+
+        for entry in negative_entries:
+            try:
+                booking_code = entry.get('booking_code', '')
+                booking_date_str = entry.get('booking_date', '')  # e.g. "26 Mar 2026"
+                booking_day = entry.get('booking_day', '')
+                booking_time = entry.get('booking_time', '')
+                booking_place = entry.get('booking_place', '')
+
+                print(f'\n  Processing: {booking_code} (day={booking_day} time={booking_time} place={booking_place})')
+
+                # Parse the date to get day/month for Turitop filter
+                # booking_code format: "26/3_17:30_4e"
+                parts = booking_code.split('_')
+                if len(parts) >= 1:
+                    date_parts = parts[0].split('/')
+                    if len(date_parts) == 2:
+                        day = date_parts[0]
+                        month = date_parts[1]
+                    else:
+                        print(f'  -> Cannot parse date from booking_code: {booking_code}')
+                        continue
+                else:
+                    print(f'  -> Invalid booking_code format: {booking_code}')
+                    continue
+
+                year = datetime.datetime.now().year
+                target_date = f"{int(day):02d}-{int(month):02d}-{year}"
+
+                # Navigate to bookings and filter by date
+                wb.get("https://app.turitop.com/admin/company/P271/bookings")
+                time.sleep(5)
+
+                wb.send_keys("#filter_event_date_from", target_date, full=True, clear=True)
+                wb.send_keys("#filter_event_date_to", target_date, full=True, clear=True)
+                time.sleep(2)
+                wb.js_click("button[type=submit][name=action]")
+                time.sleep(5)
+
+                # Find the correct booking row by matching day, time and place
+                rows = wb.web_browser.find_elements(
+                    By.CSS_SELECTOR, "tr.bookings-history-row:not([class*='deleted'])"
+                )
+
+                target_row = None
+                for row in rows:
+                    try:
+                        row_day = wb.get_text("div.format-day-of-month-number", row)
+                        row_time = wb.get_text("div.format-time-short", row)
+                        row_place = wb.get_text("span.bookings-product-name", row)
+
+                        # Match by time (most specific) and optionally by place
+                        if row_time.strip() == booking_time.strip() and row_day.strip() == day.strip():
+                            # If we have place info, also verify it
+                            if booking_place:
+                                if booking_place.upper().replace('#', '') in row_place.upper().replace('#', ''):
+                                    target_row = row
+                                    break
+                            else:
+                                target_row = row
+                                break
+                    except:
+                        continue
+
+                if not target_row:
+                    print(f'  -> Booking row not found in Turitop.')
+                    continue
+
+                print(f'  -> Found booking row. Clicking "Acciones del Email"...')
+
+                # Find and click the "Acciones del Email" button (wrench/tool icon)
+                email_action_btn = None
+                try:
+                    # The email actions button - try common icon selectors in the row
+                    for btn_sel in [
+                        "a[title*='Acciones']",
+                        "a[title*='acciones']",
+                        "a[title*='Email']",
+                        "a[title*='email']",
+                        "a.btn-email-actions",
+                        "a[onclick*='emailAction']",
+                        "a[onclick*='email_action']",
+                    ]:
+                        try:
+                            email_action_btn = target_row.find_element(By.CSS_SELECTOR, btn_sel)
+                            break
+                        except:
+                            continue
+
+                    # Fallback: try all action buttons/links in the row
+                    if not email_action_btn:
+                        action_links = target_row.find_elements(By.CSS_SELECTOR, "a.btn, a[role='button'], td a")
+                        for link in action_links:
+                            title = (link.get_attribute('title') or '').lower()
+                            onclick = (link.get_attribute('onclick') or '').lower()
+                            icon = ''
+                            try:
+                                icon_el = link.find_element(By.CSS_SELECTOR, "i, span")
+                                icon = (icon_el.get_attribute('class') or '').lower()
+                            except:
+                                pass
+                            if ('email' in title or 'email' in onclick or
+                                'wrench' in icon or 'tool' in icon or 'cog' in icon or
+                                'acciones' in title):
+                                email_action_btn = link
+                                break
+
+                except Exception as btn_err:
+                    print(f'  -> Error finding email action button: {btn_err}')
+
+                if not email_action_btn:
+                    print(f'  -> [WARN] Could not find "Acciones del Email" button.')
+                    continue
+
+                wb.web_browser.execute_script("arguments[0].click();", email_action_btn)
+                print(f'  -> Waiting 10s for email actions menu...')
+                time.sleep(10)
+
+                # Now look for the dropdown/select with "Desencolar" option
+                dequeue_clicked = False
+
+                # Try 1: It might be a <select> dropdown with "Escoge una acción"
+                try:
+                    select_el = wb.web_browser.find_element(By.CSS_SELECTOR, "select")
+                    from selenium.webdriver.support.ui import Select
+                    select_obj = Select(select_el)
+                    for option in select_obj.options:
+                        opt_text = (option.get_attribute('innerText') or '').strip().lower()
+                        if 'desencolar' in opt_text:
+                            select_obj.select_by_visible_text(option.get_attribute('innerText').strip())
+                            dequeue_clicked = True
+                            print(f'  -> Selected "Desencolar" option from dropdown.')
+                            break
+                except:
+                    pass
+
+                # Try 2: Click on list items / links if it's a menu
+                if not dequeue_clicked:
+                    try:
+                        menu_items = wb.web_browser.find_elements(By.CSS_SELECTOR, "a, li, div[role='option'], option")
+                        for item in menu_items:
+                            item_text = (item.get_attribute('innerText') or '').strip().lower()
+                            if 'desencolar' in item_text:
+                                wb.web_browser.execute_script("arguments[0].click();", item)
+                                dequeue_clicked = True
+                                print(f'  -> Clicked "Desencolar" option.')
+                                break
+                    except:
+                        pass
+
+                if dequeue_clicked:
+                    time.sleep(3)
+                    # Check for confirmation dialog and accept
+                    try:
+                        alert = wb.web_browser.switch_to.alert
+                        alert.accept()
+                        print(f'  -> Confirmation alert accepted.')
+                    except:
+                        pass
+                    # Also try clicking any confirm/ok buttons
+                    for confirm_sel in ["button.btn-primary", "button.btn-success", "input[type='submit']", "button[type='submit']"]:
+                        try:
+                            confirm_btn = wb.web_browser.find_element(By.CSS_SELECTOR, confirm_sel)
+                            wb.web_browser.execute_script("arguments[0].click();", confirm_btn)
+                            break
+                        except:
+                            continue
+                    time.sleep(3)
+                    print(f'  -> [OK] Review email dequeued for {booking_code}!')
+                else:
+                    print(f'  -> [WARN] Could not find "Desencolar" option.')
+                    # Close any open dialog
+                    try:
+                        for close_sel in ["button.btn-danger", "a.close", "button[data-dismiss]"]:
+                            try:
+                                close_btn = wb.web_browser.find_element(By.CSS_SELECTOR, close_sel)
+                                wb.web_browser.execute_script("arguments[0].click();", close_btn)
+                                break
+                            except:
+                                continue
+                    except:
+                        pass
+
+            except Exception as e_entry:
+                print(f'  [ERROR] Processing negative entry: {e_entry}, line: {e_entry.__traceback__.tb_lineno}')
+
+        # Close Turitop tab
+        try:
+            wb.web_browser.close()
+            wb.web_browser.switch_to.window(wb.web_browser.window_handles[0])
+        except:
+            pass
+
+        print(f'\n========== MODULE 5 DONE ==========')
+
+    except Exception as e:
+        print(f'  [ERROR] dequeue_negative_review_emails: {e}, line: {e.__traceback__.tb_lineno}')
+        try:
+            if len(wb.web_browser.window_handles) > 1:
+                wb.web_browser.close()
+                wb.web_browser.switch_to.window(wb.web_browser.window_handles[0])
+        except:
+            pass
 
 
 # ============================================================
@@ -1811,7 +2054,13 @@ if photo_entries:
     audit_photo_descriptions(photo_entries)
 
 # Module 3: Check pending replies
-check_pending_replies()
+negative_reviews = check_pending_replies() or []
+
+# Module 5: Dequeue review emails for negative reviews
+if negative_reviews:
+    dequeue_negative_review_emails(negative_reviews)
+else:
+    print("\nNo negative reviews — skipping Module 5.")
 
 print("\n" + "=" * 60)
 print("  ALL DONE! Press Enter to close browser and exit.")
