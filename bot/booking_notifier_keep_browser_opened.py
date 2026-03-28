@@ -82,8 +82,44 @@ sala_to_places = {
 photo_thank_you_template_fp = os.path.join(sys.path[0], 'data', 'photo_thank_you_template.txt')
 positive_review_template_fp = os.path.join(sys.path[0], 'data', 'positive_review_template.txt')
 negative_review_template_fp = os.path.join(sys.path[0], 'data', 'negative_review_template.txt')
+bad_caption_ids_fp = os.path.join(sys.path[0], 'data', 'bad_caption_replied_ids.json')
+failed_sends_fp = os.path.join(sys.path[0], 'data', 'failed_photo_sends.json')
 
 os.system("title " + os.path.basename(__file__))
+
+
+# ============================================================
+# HELPER: Cache for bad caption replies and failed sends
+# ============================================================
+def _load_json_set(filepath):
+    """Load a JSON list from file, return as set."""
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return set(json.load(f))
+        except:
+            pass
+    return set()
+
+
+def _save_json_set(filepath, data_set):
+    """Save a set as JSON list to file (keep last 500)."""
+    items = list(data_set)[-500:]
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(items, f)
+
+
+def _track_failed_send(send_id):
+    """Track a failed send so we don't retry it endlessly."""
+    failed = _load_json_set(failed_sends_fp)
+    failed.add(send_id)
+    _save_json_set(failed_sends_fp, failed)
+
+
+def _is_failed_send(send_id):
+    """Check if this send previously failed."""
+    failed = _load_json_set(failed_sends_fp)
+    return send_id in failed
 
 
 class Browser:
@@ -99,6 +135,10 @@ class Browser:
             o.add_argument(f'--user-data-dir={cache_path}')
             
             o.add_argument('--log-level=3')
+            o.add_argument('--disable-session-crashed-bubble')
+            o.add_experimental_option('excludeSwitches', ['enable-automation'])
+            prefs = {"profile.exit_type": "Normal", "profile.exited_cleanly": True}
+            o.add_experimental_option('prefs', prefs)
 
             for attempt in range(3):
                 try:
@@ -148,6 +188,26 @@ class Browser:
             self.show_error(error_func)
             print("failed to load cookies.")
             return False
+
+    def dismiss_restore_dialog(self):
+        """Dismiss Chrome's 'Restore pages?' dialog if it appears."""
+        try:
+            self.web_browser.execute_script("""
+                var buttons = document.querySelectorAll('button');
+                buttons.forEach(function(btn) {
+                    var text = btn.innerText.toLowerCase();
+                    if (text.includes('restore') || text.includes('cancel') || text.includes('no') || text.includes('close')) {
+                        btn.click();
+                    }
+                });
+            """)
+        except:
+            pass
+        try:
+            from selenium.webdriver.common.action_chains import ActionChains
+            ActionChains(self.web_browser).send_keys(Keys.ESCAPE).perform()
+        except:
+            pass
 
     def css_click(self, element):
         for count in range(0, self.waiting_time, 1):
@@ -694,11 +754,12 @@ def send_message_to_group(all_booking_data):
 # ============================================================
 
 def parse_photo_caption(caption_text):
-    """Parse caption like '14/3 17:30 csi' or '14/3 17:30/40 csi'.
-    Returns dict with date, times[], sala or None if invalid."""
+    """Parse caption like '14/3 17:30 csi' or '14/3 17:30/40 csi' or '14/3 17:30 csi/maf'.
+    Returns dict with date, times[], salas[] or None if invalid."""
     caption_text = caption_text.lower().strip()
-    match = re.match(
-        r'(\d{1,2}/\d{1,2})\s+(\d{1,2}:\d{2})(?:/(\d{2}))?\s+(4e|csi|maf|tri)',
+    # Format: dd/m HH:MM[/mm] sala[/sala2/sala3...]
+    match = re.search(
+        r'(\d{1,2}/\d{1,2})\s+(\d{1,2}:\d{2})(?:/(\d{2}))?\s+((?:4e|csi|maf|tri)(?:/(?:4e|csi|maf|tri))*)',
         caption_text
     )
     if not match:
@@ -707,45 +768,63 @@ def parse_photo_caption(caption_text):
     date_str = match.group(1)   # "14/3"
     time1 = match.group(2)      # "17:30"
     time2_min = match.group(3)  # "40" or None
-    sala = match.group(4)       # "csi"
+    salas = match.group(4).split('/')  # ["csi"] or ["csi", "maf"]
 
     times = [time1]
     if time2_min:
         hour = time1.split(':')[0]
         times.append(f"{hour}:{time2_min}")
 
-    return {'date': date_str, 'times': times, 'sala': sala}
+    return {'date': date_str, 'times': times, 'salas': salas}
 
 
-def download_wa_image(img_element, save_path):
-    """Download an image from WhatsApp Web blob URL using JS fetch + base64."""
-    try:
-        base64_data = wb.web_browser.execute_async_script("""
-            var callback = arguments[arguments.length - 1];
-            var imgEl = arguments[0];
-            fetch(imgEl.src)
-                .then(function(r) { return r.blob(); })
-                .then(function(blob) {
-                    var reader = new FileReader();
-                    reader.onloadend = function() { callback(reader.result); };
-                    reader.readAsDataURL(blob);
-                })
-                .catch(function(err) { callback('ERROR:' + err.toString()); });
-        """, img_element)
+def download_wa_image(img_element, save_path, max_retries=3):
+    """Download an image from WhatsApp Web blob URL using JS fetch + base64.
+    Retries up to max_retries times on failure."""
+    for attempt in range(1, max_retries + 1):
+        try:
+            # Check that the element still has a valid blob src
+            src = img_element.get_attribute('src') or ''
+            if not src.startswith('blob:'):
+                print(f'  attempt {attempt}: img src is not a blob ({src[:50]}), skipping')
+                time.sleep(2)
+                continue
 
-        if base64_data and not base64_data.startswith('ERROR:'):
-            if ',' in base64_data:
-                base64_data = base64_data.split(',')[1]
-            with open(save_path, 'wb') as f:
-                f.write(base64.b64decode(base64_data))
-            print(f'photo downloaded: {save_path}')
-            return True
-        else:
-            print(f'failed to download image: {base64_data}')
-            return False
-    except Exception as e:
-        print(f'error downloading image: {e}')
-        return False
+            base64_data = wb.web_browser.execute_async_script("""
+                var callback = arguments[arguments.length - 1];
+                var imgEl = arguments[0];
+                fetch(imgEl.src)
+                    .then(function(r) { return r.blob(); })
+                    .then(function(blob) {
+                        var reader = new FileReader();
+                        reader.onloadend = function() { callback(reader.result); };
+                        reader.readAsDataURL(blob);
+                    })
+                    .catch(function(err) { callback('ERROR:' + err.toString()); });
+            """, img_element)
+
+            if base64_data and not str(base64_data).startswith('ERROR:'):
+                if ',' in base64_data:
+                    base64_data = base64_data.split(',')[1]
+                raw = base64.b64decode(base64_data)
+                # Verify we got actual image data (at least 5KB to avoid thumbnails)
+                if len(raw) < 5000:
+                    print(f'  attempt {attempt}: downloaded data too small ({len(raw)} bytes), might be thumbnail. Retrying...')
+                    time.sleep(3)
+                    continue
+                with open(save_path, 'wb') as f:
+                    f.write(raw)
+                print(f'photo downloaded ({len(raw)} bytes): {save_path}')
+                return True
+            else:
+                print(f'  attempt {attempt}: failed to download image: {base64_data}')
+                time.sleep(3)
+        except Exception as e:
+            print(f'  attempt {attempt}: error downloading image: {e}')
+            time.sleep(3)
+
+    print(f'all {max_retries} download attempts failed for {save_path}')
+    return False
 
 
 def scrape_photo_group():
@@ -788,12 +867,22 @@ def scrape_photo_group():
 
         time.sleep(10)
 
-        # Scroll up to load more messages
+        # Scroll up to load more messages (load enough history to catch all photos)
         try:
-            chat_pane = wb.web_browser.find_element(By.CSS_SELECTOR, "div[role='application'], div.copyable-area div[tabindex]")
-            for _ in range(3):
-                wb.web_browser.execute_script("arguments[0].scrollTop = 0;", chat_pane)
-                time.sleep(2)
+            chat_pane = None
+            for pane_sel in ["div[role='application']", "div.copyable-area div[tabindex]", "div._ajyl"]:
+                try:
+                    chat_pane = wb.web_browser.find_element(By.CSS_SELECTOR, pane_sel)
+                    break
+                except:
+                    continue
+            if chat_pane:
+                for _ in range(8):
+                    wb.web_browser.execute_script("arguments[0].scrollTop = 0;", chat_pane)
+                    time.sleep(2)
+                # Scroll back down to load all messages in view
+                wb.web_browser.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight;", chat_pane)
+                time.sleep(3)
         except:
             pass
 
@@ -843,57 +932,142 @@ def scrape_photo_group():
                 # 1. Parse caption directly from entire message text block
                 parsed = parse_photo_caption(msg_text)
                 if not parsed:
+                    # Check if this message has a photo (image with bad/missing caption)
+                    has_image = bool(msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']"))
+                    if not has_image:
+                        has_image = bool(msg.find_elements(By.CSS_SELECTOR, "span[data-icon='download'], span[data-icon='arrow-down']"))
+
+                    if has_image:
+                        bad_caption_replied = _load_json_set(bad_caption_ids_fp)
+                        if msg_id not in bad_caption_replied:
+                            print(f'  Photo with BAD nomenclature detected! Replying...')
+                            try:
+                                ActionChains(wb.web_browser).context_click(msg).perform()
+                                time.sleep(1)
+                                reply_clicked = wb.css_click_with_timer(
+                                    "div[aria-label='Responder'], div[aria-label='Reply'], li[data-animate-dropdown-item='true']:first-child",
+                                    5
+                                )
+                                if reply_clicked:
+                                    time.sleep(1)
+                                    reply_text = (
+                                        "⚠️ Esta foto no tiene el formato correcto.\n"
+                                        "Por favor reenvíala con el formato:\n\n"
+                                        "📝 *dia/mes hora sala*\n"
+                                        "Ejemplo: 24/3 19:10 csi\n"
+                                        "Varias salas: 24/3 19:10 csi/tri\n"
+                                        "Salas válidas: 4e, csi, maf, tri"
+                                    )
+                                    import pyperclip
+                                    pyperclip.copy(reply_text)
+                                    time.sleep(0.5)
+                                    chat_input = wb.web_browser.find_element(
+                                        By.CSS_SELECTOR, "footer div[contenteditable='true']"
+                                    )
+                                    chat_input.click()
+                                    time.sleep(0.5)
+                                    chat_input.send_keys(Keys.CONTROL, 'v')
+                                    time.sleep(1)
+                                    chat_input.send_keys(Keys.ENTER)
+                                    time.sleep(2)
+                                    print(f'  -> Replied with format instructions.')
+                                else:
+                                    print(f'  -> Could not open reply menu.')
+                                    ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                                    time.sleep(0.5)
+                            except Exception as reply_err:
+                                print(f'  -> Error replying to bad caption: {reply_err}')
+                                try:
+                                    ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                                except:
+                                    pass
+
+                            bad_caption_replied.add(msg_id)
+                            _save_json_set(bad_caption_ids_fp, bad_caption_replied)
+
                     new_processed.add(msg_id)
                     continue
                     
                 found_new = True
 
-                print(f'mapped caption: {parsed["date"]} {parsed["times"]} {parsed["sala"]}')
+                print(f'mapped caption: {parsed["date"]} {parsed["times"]} {"/".join(parsed["salas"])}')
                 
-                # 2. Check for image
+                # 2. Check for image - try multiple strategies to find it
                 img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
-                
+
                 if not img_elements:
-                    # Look for download button if image isn't auto-downloaded
-                    dl_icons = msg.find_elements(By.CSS_SELECTOR, "span[data-icon='download']")
+                    # Strategy A: Look for download button (image not auto-downloaded)
+                    dl_icons = msg.find_elements(By.CSS_SELECTOR,
+                        "span[data-icon='download'], span[data-icon='arrow-down'], span[data-icon='media-download']")
                     if dl_icons:
-                        try:
-                            dl_icons[0].find_element(By.XPATH, "..").click()
-                        except:
-                            dl_icons[0].click()
+                        print(f'  clicking download button for message...')
+                        for dl_icon in dl_icons:
+                            try:
+                                wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", dl_icon)
+                                time.sleep(0.5)
+                                try:
+                                    dl_icon.find_element(By.XPATH, "..").click()
+                                except:
+                                    dl_icon.click()
+                                break
+                            except:
+                                continue
+                        # Wait longer for download to complete (images can be large)
+                        for wait_round in range(15):
+                            time.sleep(2)
+                            img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+                            if img_elements:
+                                print(f'  image appeared after {(wait_round+1)*2}s wait')
+                                break
                     else:
-                        try: msg.click()
-                        except: pass
-                        
-                    time.sleep(6)
-                    img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
-                    
+                        # Strategy B: Click the message itself to trigger load
+                        try:
+                            msg.click()
+                        except:
+                            pass
+                        time.sleep(8)
+                        img_elements = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+
                 if not img_elements:
-                    print('error: could not find image blob even after trying to download')
+                    print(f'  could not find image blob after all strategies, will retry next cycle')
                     continue
 
+                # Unique filename: use hash of msg_id to avoid collisions
                 timestamp_clean = re.sub(r'[^\w]', '_', msg_timestamp)[:30]
-                photo_filename = f"photo_{timestamp_clean}.jpg"
+                import hashlib
+                id_hash = hashlib.md5(msg_id.encode()).hexdigest()[:8]
+                photo_filename = f"photo_{timestamp_clean}_{id_hash}.jpg"
                 photo_path = os.path.join(downloaded_photos_dir, photo_filename)
 
-                img_elements[0].click()
-                time.sleep(4)
+                download_success = False
 
-                viewer_imgs = wb.web_browser.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
-                if viewer_imgs:
-                    download_success = download_wa_image(viewer_imgs[-1], photo_path)
-                else:
-                    download_success = download_wa_image(img_elements[0], photo_path)
+                # Download directly from this message's blob (no viewer needed).
+                # Each message element has its own blob URL with its specific image.
+                try:
+                    msg = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
+                    msg_imgs = msg.find_elements(By.CSS_SELECTOR, "img[src*='blob:']")
+                except:
+                    msg_imgs = img_elements
 
-                wb.css_click_with_timer("span[data-icon='x'], span[data-icon='x-viewer']", 10)
-                time.sleep(2)
+                if msg_imgs:
+                    try:
+                        blob_src = msg_imgs[0].get_attribute('src')
+                        print(f'  downloading from message blob: {blob_src[:60]}...')
+                    except:
+                        print(f'  downloading from message blob...')
+                    for img_el in msg_imgs:
+                        download_success = download_wa_image(img_el, photo_path)
+                        if download_success:
+                            break
 
                 if download_success:
                     parsed['photo_path'] = photo_path
                     parsed['msg_timestamp'] = msg_timestamp
                     photo_entries.append(parsed)
-                    print(f'photo entry downloaded: {parsed["date"]} {parsed["times"]} {parsed["sala"]}')
+                    print(f'photo entry downloaded: {parsed["date"]} {parsed["times"]} {"/".join(parsed["salas"])}')
                     new_processed.add(msg_id)
+                else:
+                    print(f'  ALL download strategies failed for this photo. Will retry next cycle.')
 
             except Exception as e_msg:
                 print(f'error processing message: {e_msg}')
@@ -1040,39 +1214,70 @@ def match_and_send_photos(photo_entries):
         pending = json.load(open(pending_replies_fp, 'r'))
 
         for entry in photo_entries:
+          try:
             date_str = entry['date']
-            sala = entry['sala']
+            salas = entry['salas']
             photo_path = entry['photo_path']
-            target_places = sala_to_places.get(sala, [])
+            sala_label = '/'.join(salas)
             day_num = date_str.split('/')[0]
             bookings = bookings_by_date.get(date_str, [])
 
-            for t in entry['times']:
-                print(f'matching: date={date_str} time={t} sala={sala}')
+            # Track wa_links we've already sent THIS photo to, to avoid duplicates
+            # (e.g., maf/csi 16:00/10 where both bookings belong to same customer)
+            sent_wa_links_this_photo = set()
+
+            # Match each time to its corresponding sala.
+            # Caption "16:00/10 maf/csi" means: 16:00→maf, 16:10→csi
+            # If times and salas are paired (same count), each time matches its sala.
+            times = entry['times']
+
+            for time_idx, t in enumerate(times):
+                # Determine which places to search for this specific time
+                if len(times) == len(salas) and len(times) > 1:
+                    # Paired: time[i] corresponds to sala[i]
+                    specific_sala = salas[time_idx]
+                    time_target_places = sala_to_places.get(specific_sala, [])
+                    print(f'matching: date={date_str} time={t} sala={specific_sala} (paired)')
+                else:
+                    # Single time or mismatch: use all salas
+                    time_target_places = []
+                    for s in salas:
+                        time_target_places.extend(sala_to_places.get(s, []))
+                    print(f'matching: date={date_str} time={t} salas={sala_label}')
 
                 matched_booking = None
                 for b in bookings:
                     b_place = b['booking_place'].upper().replace('#', '')
                     if (b['booking_time'].strip() == t.strip() and
                             b['booking_day'].strip() == day_num.strip() and
-                            any(p.upper() in b_place for p in target_places)):
+                            any(p.upper() in b_place for p in time_target_places)):
                         matched_booking = b
                         break
 
                 if not matched_booking:
-                    print(f'no matching booking for {date_str} {t} {sala}')
+                    print(f'no matching booking for {date_str} {t} {sala_label}')
                     continue
 
                 if not matched_booking.get('wa_link'):
                     print('booking found but no WhatsApp link.')
                     continue
 
+                # Skip if we already sent this same photo to this wa_link
+                wa_link_normalized = matched_booking['wa_link'].strip().lower()
+                if wa_link_normalized in sent_wa_links_this_photo:
+                    print(f'already sent this photo to {matched_booking["wa_link"]}, skipping duplicate.')
+                    continue
+
                 # Check if already sent
+                sent_id = f"{date_str}_{t}_{sala_label}_{matched_booking['wa_link']}"
+
                 with open(photo_sent_messages_fp, 'r') as f:
-                    sent_id = f"{date_str}_{t}_{sala}_{matched_booking['wa_link']}"
                     if sent_id in f.read():
                         print('photo already sent for this booking, skipping.')
                         continue
+
+                # Note: we no longer permanently skip failed sends.
+                # Each cycle gets a fresh chance to send.
 
                 # Send photo + message to client
                 print(f'sending photo to client: {matched_booking["wa_link"]}')
@@ -1094,83 +1299,220 @@ def match_and_send_photos(photo_entries):
                 with open(photo_thank_you_template_fp, 'r', encoding='utf-8') as f:
                     photo_thank_you_msg = f.read().strip()
 
-                try:
-                    import subprocess
-                    import pyperclip
-                    from selenium.webdriver.common.keys import Keys
-                    
-                    # 1. Click main chat area to focus it
+                send_success = False
+                for send_attempt in range(1, 3):  # Try up to 2 times
                     try:
-                        chat_input = wb.web_browser.find_element(
-                            By.CSS_SELECTOR, "footer div[contenteditable='true']"
-                        )
-                        chat_input.click()
-                    except:
-                        pass
-                    time.sleep(1)
+                        import subprocess
+                        import pyperclip
+                        from selenium.webdriver.common.keys import Keys
 
-                    # 2. Copy image to OS clipboard using PowerShell
-                    print("copying image to OS clipboard...")
-                    photo_ps_path = os.path.abspath(photo_path).replace("\\", "/")
-                    ps_script = f"""
+                        # 1. Copy image to Windows clipboard via PowerShell FIRST (before focusing browser)
+                        print(f"  send attempt {send_attempt}: copying image to OS clipboard...")
+                        photo_ps_path = os.path.abspath(photo_path).replace("\\", "/")
+                        ps_script = f"""
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 $img = [System.Drawing.Image]::FromFile('{photo_ps_path}')
 [System.Windows.Forms.Clipboard]::SetImage($img)
 $img.Dispose()
 """
-                    subprocess.run(["powershell", "-STA", "-command", ps_script], check=True)
+                        subprocess.run(["powershell", "-STA", "-command", ps_script], check=True, timeout=30)
 
-                    # 3. Paste image into WhatsApp chat
-                    print("pasting image into WhatsApp...")
+                        # 2. Re-focus browser window (PowerShell stole focus)
+                        wb.web_browser.switch_to.window(wb.web_browser.current_window_handle)
+                        time.sleep(2)
+
+                        # 3. Click chat input to ensure it's focused and interactable
+                        chat_input = None
+                        for selector in [
+                            "footer div[contenteditable='true']",
+                            "div[contenteditable='true'][data-tab]",
+                            "div[title='Escribe un mensaje aquí']",
+                            "div[title='Escribe un mensaje']",
+                            "div[title='Type a message']",
+                            "div[aria-placeholder='Escribe un mensaje']"
+                        ]:
+                            try:
+                                chat_input = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
+                                wb.web_browser.execute_script("arguments[0].scrollIntoView(true);", chat_input)
+                                time.sleep(0.5)
+                                chat_input.click()
+                                break
+                            except:
+                                continue
+
+                        if not chat_input:
+                            print("  could not find chat input, trying active element...")
+
+                        time.sleep(1)
+
+                        # 4. Paste image into WhatsApp chat
+                        print("  pasting image into WhatsApp...")
+                        paste_ok = False
+                        for paste_try in range(3):
+                            try:
+                                if chat_input:
+                                    chat_input.send_keys(Keys.CONTROL, 'v')
+                                else:
+                                    wb.web_browser.switch_to.active_element.send_keys(Keys.CONTROL, 'v')
+                                paste_ok = True
+                                break
+                            except Exception as paste_err:
+                                print(f"  paste try {paste_try+1} failed: {paste_err}")
+                                time.sleep(1)
+                                try:
+                                    ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+                                    paste_ok = True
+                                    break
+                                except:
+                                    time.sleep(2)
+
+                        if not paste_ok:
+                            print("  all paste attempts failed, retrying send...")
+                            continue
+
+                    except Exception as e:
+                        print(f'  error pasting image (attempt {send_attempt}): {e}')
+                        continue
+
+                    # Wait for image preview overlay.
+                    # IMPORTANT: Do NOT use 'Escribe un mensaje' alone - that's the regular chat
+                    # input and will always match. Use preview-specific indicators instead.
+                    print("  waiting for image preview overlay...")
+                    preview_found = False
+                    preview_selectors = [
+                        "div[aria-placeholder*='Añade']",
+                        "div[aria-placeholder*='Add a caption']",
+                        "div[aria-placeholder*='comentario']",
+                        "div[title*='comentario']",
+                        "span[data-icon='pencil']",
+                        "span[data-icon='crop']",
+                        "span[data-icon='scissors']",
+                        "span[data-icon='text']",
+                        "span[data-icon='sticker']",
+                        "span[data-icon='send']",
+                        "span[data-icon='wds-ic-send-filled']",
+                    ]
+                    for wait_i in range(15):
+                        time.sleep(2)
+                        # If there are 2+ 'Escribe un mensaje' inputs, the preview is open
+                        try:
+                            escribe_inputs = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[aria-placeholder*='Escribe un mensaje']")
+                            if len(escribe_inputs) >= 2:
+                                preview_found = True
+                                print(f"  preview detected via duplicate 'Escribe un mensaje' inputs ({len(escribe_inputs)}) after {(wait_i+1)*2}s")
+                                break
+                        except:
+                            pass
+                        for preview_sel in preview_selectors:
+                            try:
+                                found = wb.web_browser.find_elements(By.CSS_SELECTOR, preview_sel)
+                                if found:
+                                    preview_found = True
+                                    print(f"  preview detected via '{preview_sel}' after {(wait_i+1)*2}s")
+                                    break
+                            except:
+                                continue
+                        if preview_found:
+                            break
+
+                    if not preview_found:
+                        print(f"  image preview did not appear (attempt {send_attempt}), retrying...")
+                        try:
+                            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                            time.sleep(2)
+                        except:
+                            pass
+                        continue
+
+                    # Find the caption box inside the preview overlay.
+                    print("  typing caption with clipboard to preserve format...")
+                    caption_box = None
+                    for cap_sel in [
+                        "div[aria-placeholder*='Añade']",
+                        "div[aria-placeholder*='Add a caption']",
+                        "div[aria-placeholder*='comentario']",
+                        "div[title*='comentario']",
+                    ]:
+                        try:
+                            caption_box = wb.web_browser.find_element(By.CSS_SELECTOR, cap_sel)
+                            wb.web_browser.execute_script("arguments[0].click();", caption_box)
+                            print(f"  caption box found via '{cap_sel}'")
+                            break
+                        except:
+                            continue
+                    # Fallback: use the last 'Escribe un mensaje' input (the preview one)
+                    if not caption_box:
+                        try:
+                            escribe_inputs = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[aria-placeholder*='Escribe un mensaje']")
+                            if len(escribe_inputs) >= 2:
+                                caption_box = escribe_inputs[-1]
+                                wb.web_browser.execute_script("arguments[0].click();", caption_box)
+                                print(f"  caption box found via last 'Escribe un mensaje' (index {len(escribe_inputs)-1})")
+                            else:
+                                print(f"  [WARN] only {len(escribe_inputs)} 'Escribe un mensaje' found, preview may not be open!")
+                        except:
+                            pass
+                    if not caption_box:
+                        print("  could not find caption box, falling back to active element")
+                        caption_box = wb.web_browser.switch_to.active_element
+
+                    pyperclip.copy(photo_thank_you_msg)
                     time.sleep(1)
-                    wb.web_browser.switch_to.active_element.send_keys(Keys.CONTROL, 'v')
-                    
-                except Exception as e:
-                    print(f'error pasting image: {e}')
-                    continue
+                    wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", caption_box)
+                    time.sleep(0.5)
+                    ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
 
-                print("waiting for image preview overlay...")
-                time.sleep(6)
+                    time.sleep(3)
 
-                print("typing caption with clipboard to preserve format...")
-                try:
-                    caption_box = wb.web_browser.find_element(
-                        By.CSS_SELECTOR, 
-                        "div[aria-placeholder*='Añade'], div[aria-placeholder*='Add a caption'], div[title*='comentario']"
-                    )
-                    caption_box.click()
-                except:
-                    print("could not find specific caption box, falling back to active element")
-                    caption_box = wb.web_browser.switch_to.active_element
+                    res = wb.css_click("div[aria-label=Enviar],span[data-icon='send'],span[data-icon='wds-ic-send-filled']")
+                    time.sleep(5)
 
-                pyperclip.copy(photo_thank_you_msg)
-                time.sleep(1)
-                caption_box.send_keys(Keys.CONTROL, 'v')
+                    print(f"  sending photo result: {res}")
+                    # Wait for the message to appear as sent
+                    for check_i in range(10):
+                        out_msgs = wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out')
+                        if out_msgs:
+                            send_success = True
+                            break
+                        time.sleep(2)
 
-                time.sleep(3)
+                    if send_success:
+                        print('  photo with caption sent to client!')
+                        time.sleep(5)
+                        break
+                    else:
+                        print(f'  photo NOT confirmed as sent (attempt {send_attempt})')
+                        # Press Escape and retry
+                        try:
+                            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                            time.sleep(2)
+                        except:
+                            pass
 
-                res = wb.css_click("div[aria-label=Enviar],span[data-icon='send']")
-                time.sleep(5)
+                if send_success:
+                    sent_wa_links_this_photo.add(wa_link_normalized)
+                    # Record as sent
+                    with open(photo_sent_messages_fp, 'a') as f:
+                        f.write(sent_id + '\n')
 
-                print(f"sending photo result: {res}")
-                if wb.elem_wait('div.message-out'):
-                    print('photo with caption sent to client.')
-                    time.sleep(10)
+                    # Add to pending replies
+                    pending.append({
+                        'wa_link': matched_booking['wa_link'],
+                        'timestamp_sent': datetime.datetime.now().isoformat(),
+                        'booking_code': f"{date_str}_{t}_{sala_label}",
+                        'booking_date': matched_booking.get('booking_date', '')
+                    })
                 else:
-                    print('photo NOT sent to client.')
-
-                # Record as sent
-                with open(photo_sent_messages_fp, 'a') as f:
-                    f.write(sent_id + '\n')
-
-                # Add to pending replies
-                pending.append({
-                    'wa_link': matched_booking['wa_link'],
-                    'timestamp_sent': datetime.datetime.now().isoformat(),
-                    'booking_code': f"{date_str}_{t}_{sala}",
-                    'booking_date': matched_booking.get('booking_date', '')
-                })
+                    print(f'  photo send FAILED after all attempts for {sent_id}. Will retry next cycle.')
+          except Exception as entry_err:
+            print(f'  [ERROR] Failed processing entry: {entry_err}')
+            print(f'  Continuing with next entry...')
+            try:
+                ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                time.sleep(2)
+            except:
+                pass
 
         # Save pending replies
         json.dump(pending, open(pending_replies_fp, 'w'), indent=2)
@@ -1412,6 +1754,14 @@ def daily_cleanup():
                 json.dump(updated, open(pending_replies_fp, 'w'), indent=2)
                 print(f'cleaned {len(pending) - len(updated)} expired pending replies.')
 
+        # Clear failed sends so they get retried each day
+        if os.path.exists(failed_sends_fp):
+            try:
+                os.remove(failed_sends_fp)
+                print('cleared failed sends tracking (fresh retry).')
+            except:
+                pass
+
         print('--- Module 4 complete ---')
 
     except Exception as e:
@@ -1433,9 +1783,13 @@ while 1:
         wb.web_browser.switch_to.window(wb.web_browser.window_handles[0])
         if not("whatsapp.com" in wb.web_browser.current_url):
             wb.get("https://web.whatsapp.com")
+            time.sleep(2)
+            wb.dismiss_restore_dialog()
             time.sleep(100)
         else:
             wb.web_browser.refresh()
+            time.sleep(2)
+            wb.dismiss_restore_dialog()
             time.sleep(100)
 
 
