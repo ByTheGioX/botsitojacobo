@@ -847,22 +847,74 @@ def scrape_turitop_for_date(target_day, target_month):
     return bookings
 
 
-def delete_message_from_group(msg_id):
-    """Navigate to photo group and delete a specific message ('Eliminar para mí').
-    This prevents re-sending on bot restart."""
+def delete_sent_photos_from_group(msg_ids):
+    """Navigate to photo group and delete all sent messages ('Eliminar para mí').
+    Opens the group once and deletes all messages from there."""
+    deleted_count = 0
     try:
-        print(f'  -> Deleting message {msg_id[:30]}... from group')
+        print(f'\n========== MODULE 6: Deleting {len(msg_ids)} sent photos from group ==========')
 
-        # Search and open the photo group
-        search_box = wb.web_browser.find_element(By.CSS_SELECTOR, "div[contenteditable='true'][data-tab='3']")
+        if not msg_ids:
+            print('  No photos to delete.')
+            print('========== MODULE 6 DONE ==========')
+            return 0
+
+        # Make sure we're on the WhatsApp tab (close any extra tabs first)
+        while len(wb.web_browser.window_handles) > 1:
+            wb.web_browser.switch_to.window(wb.web_browser.window_handles[-1])
+            wb.web_browser.close()
+        wb.web_browser.switch_to.window(wb.web_browser.window_handles[0])
+
+        # Navigate to WhatsApp main page to reset state
+        wb.get("https://web.whatsapp.com")
+        time.sleep(5)
+
+        # Press ESC to close any open dialogs/panels
+        ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+        time.sleep(1)
+        ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+        time.sleep(1)
+
+        # Find and click the search box (same approach as Module 1)
+        search_clicked = wb.css_click_with_timer(
+            "div[contenteditable='true'][data-tab='3']", 15
+        )
+        if not search_clicked:
+            search_clicked = wb.css_click_with_timer(
+                "div[role='textbox'][data-tab='3']", 10
+            )
+        if not search_clicked:
+            print('  [ERROR] Could not find WhatsApp search box. Aborting deletion.')
+            print('========== MODULE 6 DONE: 0 photos deleted ==========')
+            return 0
+
+        time.sleep(1)
+
+        # Type the group name using clipboard paste
+        search_box = None
+        for selector in [
+            "div[contenteditable='true'][data-tab='3']",
+            "div[role='textbox'][data-tab='3']",
+        ]:
+            try:
+                search_box = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
+                if search_box:
+                    break
+            except:
+                continue
+
+        if not search_box:
+            print('  [ERROR] Could not locate search box element.')
+            print('========== MODULE 6 DONE: 0 photos deleted ==========')
+            return 0
+
         wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", search_box)
         time.sleep(1)
-        search_box.clear()
         pyperclip.copy(photo_group_name)
         ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
         time.sleep(3)
 
-        # Click on the group
+        # Click on the group in search results
         group_found = False
         for sel in [
             f"span[title='{photo_group_name}']",
@@ -877,118 +929,138 @@ def delete_message_from_group(msg_id):
                 continue
 
         if not group_found:
-            print(f'  -> [WARN] Could not find group to delete message.')
-            return False
-
-        time.sleep(4)
-
-        # Find the message by data-id
-        try:
-            msg_el = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
-        except:
-            print(f'  -> Message not found in group (may already be deleted).')
-            return True  # Not an error - message is gone
-
-        # Hover over the message to reveal the dropdown arrow
-        ActionChains(wb.web_browser).move_to_element(msg_el).perform()
-        time.sleep(1)
-
-        # Click the dropdown arrow (context menu trigger)
-        down_arrow = None
-        for arrow_sel in [
-            "span[data-icon='down-context']",
-            "span[data-icon='menu']",
-            "span[data-icon='down']",
-            "div[role='button'][aria-label*='menú']",
-            "div[role='button'][aria-label*='Menu']",
-        ]:
-            try:
-                down_arrow = msg_el.find_element(By.CSS_SELECTOR, arrow_sel)
-                break
-            except:
-                continue
-
-        if not down_arrow:
-            # Try finding it in the general area after hover
-            for arrow_sel in ["span[data-icon='down-context']", "span[data-icon='menu']"]:
-                try:
-                    down_arrow = wb.web_browser.find_element(By.CSS_SELECTOR, arrow_sel)
-                    break
-                except:
-                    continue
-
-        if not down_arrow:
-            print(f'  -> [WARN] Could not find dropdown arrow for message.')
-            return False
-
-        wb.web_browser.execute_script("arguments[0].click();", down_arrow)
-        time.sleep(1)
-
-        # Click "Eliminar" / "Delete" in the context menu
-        delete_clicked = False
-        menu_items = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[role='application'] li, div[tabindex='-1'] div[role='button']")
-        for item in menu_items:
-            item_text = (item.get_attribute('innerText') or '').strip().lower()
-            if 'eliminar' in item_text or 'delete' in item_text or 'borrar' in item_text:
-                wb.web_browser.execute_script("arguments[0].click();", item)
-                delete_clicked = True
-                break
-
-        if not delete_clicked:
-            # Fallback: try aria-label on list items
-            for sel in ["li[data-animate-dropdown-item]", "div[role='listitem']"]:
-                try:
-                    items = wb.web_browser.find_elements(By.CSS_SELECTOR, sel)
-                    for item in items:
-                        txt = (item.get_attribute('innerText') or '').lower()
-                        if 'eliminar' in txt or 'delete' in txt:
-                            wb.web_browser.execute_script("arguments[0].click();", item)
-                            delete_clicked = True
-                            break
-                except:
-                    continue
-                if delete_clicked:
-                    break
-
-        if not delete_clicked:
-            print(f'  -> [WARN] Could not find "Eliminar" option in menu.')
+            print('  [ERROR] Could not find photo group in search results.')
             ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
-            return False
+            print('========== MODULE 6 DONE: 0 photos deleted ==========')
+            return 0
 
-        time.sleep(2)
+        print(f'  Opened group "{photo_group_name}". Waiting for messages to load...')
+        time.sleep(5)
 
-        # Click "Eliminar para mí" / "Delete for me" in the confirmation dialog
-        confirm_clicked = False
-        for btn_sel in ["button", "div[role='button']"]:
+        # Now delete each message one by one (already inside the group)
+        for msg_id in msg_ids:
             try:
-                buttons = wb.web_browser.find_elements(By.CSS_SELECTOR, btn_sel)
-                for btn in buttons:
-                    btn_text = (btn.get_attribute('innerText') or '').strip().lower()
-                    if 'para mí' in btn_text or 'for me' in btn_text or 'eliminar para' in btn_text:
-                        wb.web_browser.execute_script("arguments[0].click();", btn)
-                        confirm_clicked = True
+                print(f'\n  -> Deleting message {msg_id[:40]}...')
+
+                # Find the message by data-id
+                try:
+                    msg_el = wb.web_browser.find_element(By.CSS_SELECTOR, f"div[data-id='{msg_id}']")
+                except:
+                    print(f'     Message not found (may already be deleted). Skipping.')
+                    deleted_count += 1  # Count as success - it's gone
+                    continue
+
+                # Hover over the message to reveal the dropdown arrow
+                ActionChains(wb.web_browser).move_to_element(msg_el).perform()
+                time.sleep(1)
+
+                # Click the dropdown arrow (context menu trigger)
+                down_arrow = None
+                for arrow_sel in [
+                    "span[data-icon='down-context']",
+                    "span[data-icon='menu']",
+                    "span[data-icon='down']",
+                    "div[role='button'][aria-label*='menú']",
+                    "div[role='button'][aria-label*='Menu']",
+                ]:
+                    try:
+                        down_arrow = msg_el.find_element(By.CSS_SELECTOR, arrow_sel)
                         break
-                if confirm_clicked:
-                    break
-            except:
-                continue
+                    except:
+                        continue
 
-        if not confirm_clicked:
-            print(f'  -> [WARN] Could not confirm "Eliminar para mí".')
-            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
-            return False
+                if not down_arrow:
+                    # Try finding it globally after hover
+                    for arrow_sel in ["span[data-icon='down-context']", "span[data-icon='menu']"]:
+                        try:
+                            down_arrow = wb.web_browser.find_element(By.CSS_SELECTOR, arrow_sel)
+                            break
+                        except:
+                            continue
 
-        time.sleep(2)
-        print(f'  -> [OK] Message deleted from group!')
-        return True
+                if not down_arrow:
+                    print(f'     [WARN] Could not find dropdown arrow. Skipping.')
+                    continue
+
+                wb.web_browser.execute_script("arguments[0].click();", down_arrow)
+                time.sleep(1)
+
+                # Click "Eliminar" in the context menu
+                delete_clicked = False
+                menu_items = wb.web_browser.find_elements(
+                    By.CSS_SELECTOR, "div[role='application'] li, div[tabindex='-1'] div[role='button']"
+                )
+                for item in menu_items:
+                    item_text = (item.get_attribute('innerText') or '').strip().lower()
+                    if 'eliminar' in item_text or 'delete' in item_text or 'borrar' in item_text:
+                        wb.web_browser.execute_script("arguments[0].click();", item)
+                        delete_clicked = True
+                        break
+
+                if not delete_clicked:
+                    for sel in ["li[data-animate-dropdown-item]", "div[role='listitem']"]:
+                        try:
+                            items = wb.web_browser.find_elements(By.CSS_SELECTOR, sel)
+                            for item in items:
+                                txt = (item.get_attribute('innerText') or '').lower()
+                                if 'eliminar' in txt or 'delete' in txt:
+                                    wb.web_browser.execute_script("arguments[0].click();", item)
+                                    delete_clicked = True
+                                    break
+                        except:
+                            continue
+                        if delete_clicked:
+                            break
+
+                if not delete_clicked:
+                    print(f'     [WARN] Could not find "Eliminar" in menu.')
+                    ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                    time.sleep(1)
+                    continue
+
+                time.sleep(2)
+
+                # Click "Eliminar para mí" in the confirmation dialog
+                confirm_clicked = False
+                for btn_sel in ["button", "div[role='button']"]:
+                    try:
+                        buttons = wb.web_browser.find_elements(By.CSS_SELECTOR, btn_sel)
+                        for btn in buttons:
+                            btn_text = (btn.get_attribute('innerText') or '').strip().lower()
+                            if 'para mí' in btn_text or 'for me' in btn_text or 'eliminar para' in btn_text:
+                                wb.web_browser.execute_script("arguments[0].click();", btn)
+                                confirm_clicked = True
+                                break
+                        if confirm_clicked:
+                            break
+                    except:
+                        continue
+
+                if not confirm_clicked:
+                    print(f'     [WARN] Could not confirm "Eliminar para mí".')
+                    ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                    time.sleep(1)
+                    continue
+
+                time.sleep(2)
+                deleted_count += 1
+                print(f'     [OK] Deleted!')
+
+            except Exception as msg_err:
+                print(f'     [ERROR] {msg_err}')
+                try:
+                    ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                except:
+                    pass
+                time.sleep(1)
+
+        print(f'\n========== MODULE 6 DONE: {deleted_count}/{len(msg_ids)} photos deleted ==========')
 
     except Exception as e:
-        print(f'  -> [ERROR] delete_message_from_group: {e}')
-        try:
-            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
-        except:
-            pass
-        return False
+        print(f'  [ERROR] delete_sent_photos_from_group: {e}, line: {e.__traceback__.tb_lineno}')
+        print(f'========== MODULE 6 DONE: {deleted_count}/{len(msg_ids)} photos deleted ==========')
+
+    return deleted_count
 
 
 def match_and_send_photos(photo_entries):
@@ -2128,14 +2200,7 @@ else:
 
 # Module 6: Delete sent photos from group (only after all modules are done)
 if photos_to_delete:
-    print(f'\n========== MODULE 6: Deleting {len(photos_to_delete)} sent photos from group ==========')
-    deleted_count = 0
-    for msg_id in photos_to_delete:
-        success = delete_message_from_group(msg_id)
-        if success:
-            deleted_count += 1
-        time.sleep(2)
-    print(f'\n========== MODULE 6 DONE: {deleted_count}/{len(photos_to_delete)} photos deleted ==========')
+    delete_sent_photos_from_group(photos_to_delete)
 else:
     print("\nNo photos to delete from group — skipping Module 6.")
 
