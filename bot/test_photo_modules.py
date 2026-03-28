@@ -1749,7 +1749,13 @@ $img.Dispose()
 
 def dequeue_negative_review_emails(negative_entries):
     """For each negative review, go to Turitop, find the booking,
-    click 'Acciones del Email' and select 'Desencolar el email de solicitud de opinión automática'."""
+    click 'Acciones del Email' and select 'Desencolar el email de solicitud de opinión automática'.
+
+    Uses the actual Turitop HTML structure:
+    - Email button: a.tobj_icon_send_email with onclick="sendConfirmationMail(BOOKING_ID, 'SHORT_ID', 'show')"
+    - AJAX menu loads into #booking_actions_container_BOOKING_ID
+    - Menu contains select[name='mailMenuOption'] with desencolar option
+    """
     try:
         print(f'\n========== MODULE 5: Dequeuing {len(negative_entries)} review emails ==========')
 
@@ -1773,27 +1779,46 @@ def dequeue_negative_review_emails(negative_entries):
         for entry in negative_entries:
             try:
                 booking_code = entry.get('booking_code', '')
-                booking_date_str = entry.get('booking_date', '')  # e.g. "26 Mar 2026"
                 booking_day = entry.get('booking_day', '')
                 booking_time = entry.get('booking_time', '')
                 booking_place = entry.get('booking_place', '')
 
-                print(f'\n  Processing: {booking_code} (day={booking_day} time={booking_time} place={booking_place})')
-
-                # Parse the date to get day/month for Turitop filter
-                # booking_code format: "26/3_17:30_4e"
-                parts = booking_code.split('_')
-                if len(parts) >= 1:
-                    date_parts = parts[0].split('/')
-                    if len(date_parts) == 2:
-                        day = date_parts[0]
-                        month = date_parts[1]
-                    else:
-                        print(f'  -> Cannot parse date from booking_code: {booking_code}')
-                        continue
+                # FALLBACK: Parse from booking_code if fields are empty
+                # booking_code format: "26/3_17:30_4e" or "26/3_16:00_csi/maf"
+                code_parts = booking_code.split('_')
+                if len(code_parts) >= 3:
+                    code_date = code_parts[0]       # "26/3"
+                    code_time = code_parts[1]       # "17:30"
+                    code_sala = code_parts[2]        # "4e" or "csi/maf"
+                elif len(code_parts) >= 2:
+                    code_date = code_parts[0]
+                    code_time = code_parts[1]
+                    code_sala = ''
                 else:
                     print(f'  -> Invalid booking_code format: {booking_code}')
                     continue
+
+                date_parts = code_date.split('/')
+                if len(date_parts) != 2:
+                    print(f'  -> Cannot parse date from booking_code: {booking_code}')
+                    continue
+                day = date_parts[0]
+                month = date_parts[1]
+
+                # Use fallback values from booking_code when fields are empty
+                if not booking_time:
+                    booking_time = code_time
+                if not booking_day:
+                    booking_day = day
+                if not booking_place and code_sala:
+                    # Convert sala abbreviation to place names
+                    sala_parts = code_sala.split('/')
+                    place_names = []
+                    for s in sala_parts:
+                        place_names.extend(sala_to_places.get(s.lower().strip(), []))
+                    booking_place = ','.join(place_names) if place_names else code_sala
+
+                print(f'\n  Processing: {booking_code} (day={booking_day} time={booking_time} place={booking_place})')
 
                 year = datetime.datetime.now().year
                 target_date = f"{int(day):02d}-{int(month):02d}-{year}"
@@ -1813,114 +1838,165 @@ def dequeue_negative_review_emails(negative_entries):
                     By.CSS_SELECTOR, "tr.bookings-history-row:not([class*='deleted'])"
                 )
 
+                print(f'  -> Found {len(rows)} booking rows for date {target_date}')
+
                 target_row = None
                 for row in rows:
                     try:
-                        row_day = wb.get_text("div.format-day-of-month-number", row)
-                        row_time = wb.get_text("div.format-time-short", row)
-                        row_place = wb.get_text("span.bookings-product-name", row)
+                        row_day_el = row.find_element(By.CSS_SELECTOR, "div.format-day-of-month-number")
+                        row_time_el = row.find_element(By.CSS_SELECTOR, "div.format-time-short")
+                        row_place_el = row.find_element(By.CSS_SELECTOR, "span.bookings-product-name")
+                        row_day = row_day_el.text.strip()
+                        row_time = row_time_el.text.strip()
+                        row_place = row_place_el.text.strip()
 
-                        # Match by time (most specific) and optionally by place
-                        if row_time.strip() == booking_time.strip() and row_day.strip() == day.strip():
-                            # If we have place info, also verify it
+                        print(f'     Row: day={row_day} time={row_time} place={row_place}')
+
+                        # Match by time and day
+                        if row_time == booking_time.strip() and row_day == day.strip():
+                            # If we have place info, verify it matches
                             if booking_place:
-                                if booking_place.upper().replace('#', '') in row_place.upper().replace('#', ''):
+                                place_list = [p.strip().upper() for p in booking_place.split(',')]
+                                row_place_upper = row_place.upper().replace('#', '')
+                                matched = False
+                                for p in place_list:
+                                    if p.replace('#', '') in row_place_upper:
+                                        matched = True
+                                        break
+                                if matched:
                                     target_row = row
                                     break
                             else:
                                 target_row = row
                                 break
-                    except:
+                    except Exception as row_err:
                         continue
 
                 if not target_row:
                     print(f'  -> Booking row not found in Turitop.')
                     continue
 
-                print(f'  -> Found booking row. Clicking "Acciones del Email"...')
+                print(f'  -> Found booking row. Looking for email action button...')
 
-                # Find and click the "Acciones del Email" button (wrench/tool icon)
-                email_action_btn = None
+                # Extract booking_id from row id attribute (e.g. "history_row_49257387")
+                row_id = target_row.get_attribute('id') or ''
+                booking_id = row_id.replace('history_row_', '') if 'history_row_' in row_id else ''
+
+                # Extract short_id from hidden input in the row
+                short_id = ''
                 try:
-                    # The email actions button - try common icon selectors in the row
-                    for btn_sel in [
-                        "a[title*='Acciones']",
-                        "a[title*='acciones']",
-                        "a[title*='Email']",
-                        "a[title*='email']",
-                        "a.btn-email-actions",
-                        "a[onclick*='emailAction']",
-                        "a[onclick*='email_action']",
-                    ]:
-                        try:
-                            email_action_btn = target_row.find_element(By.CSS_SELECTOR, btn_sel)
-                            break
-                        except:
-                            continue
-
-                    # Fallback: try all action buttons/links in the row
-                    if not email_action_btn:
-                        action_links = target_row.find_elements(By.CSS_SELECTOR, "a.btn, a[role='button'], td a")
-                        for link in action_links:
-                            title = (link.get_attribute('title') or '').lower()
-                            onclick = (link.get_attribute('onclick') or '').lower()
-                            icon = ''
-                            try:
-                                icon_el = link.find_element(By.CSS_SELECTOR, "i, span")
-                                icon = (icon_el.get_attribute('class') or '').lower()
-                            except:
-                                pass
-                            if ('email' in title or 'email' in onclick or
-                                'wrench' in icon or 'tool' in icon or 'cog' in icon or
-                                'acciones' in title):
-                                email_action_btn = link
-                                break
-
-                except Exception as btn_err:
-                    print(f'  -> Error finding email action button: {btn_err}')
-
-                if not email_action_btn:
-                    print(f'  -> [WARN] Could not find "Acciones del Email" button.')
-                    continue
-
-                wb.web_browser.execute_script("arguments[0].click();", email_action_btn)
-                print(f'  -> Waiting 10s for email actions menu...')
-                time.sleep(10)
-
-                # Now look for the dropdown/select with "Desencolar" option
-                dequeue_clicked = False
-
-                # Try 1: It might be a <select> dropdown with "Escoge una acción"
-                try:
-                    select_el = wb.web_browser.find_element(By.CSS_SELECTOR, "select")
-                    from selenium.webdriver.support.ui import Select
-                    select_obj = Select(select_el)
-                    for option in select_obj.options:
-                        opt_text = (option.get_attribute('innerText') or '').strip().lower()
-                        if 'desencolar' in opt_text:
-                            select_obj.select_by_visible_text(option.get_attribute('innerText').strip())
-                            dequeue_clicked = True
-                            print(f'  -> Selected "Desencolar" option from dropdown.')
-                            break
+                    hash_input = target_row.find_element(By.CSS_SELECTOR, "input[id^='hashReservationId_']")
+                    short_id = hash_input.get_attribute('value') or ''
                 except:
                     pass
 
-                # Try 2: Click on list items / links if it's a menu
-                if not dequeue_clicked:
+                # Also try to get booking_id and short_id from the email button's onclick
+                email_btn = None
+                try:
+                    email_btn = target_row.find_element(By.CSS_SELECTOR, "a.tobj_icon_send_email")
+                    onclick_attr = email_btn.get_attribute('onclick') or ''
+                    print(f'  -> Email button onclick: {onclick_attr}')
+                    # Parse: sendConfirmationMail(49257387, 'P271-260324-7', 'show');
+                    import re
+                    match = re.search(r"sendConfirmationMail\((\d+),\s*'([^']+)',\s*'show'\)", onclick_attr)
+                    if match:
+                        booking_id = match.group(1)
+                        short_id = match.group(2)
+                except Exception as btn_err:
+                    print(f'  -> Could not find a.tobj_icon_send_email: {btn_err}')
+                    # Fallback: try other selectors
                     try:
-                        menu_items = wb.web_browser.find_elements(By.CSS_SELECTOR, "a, li, div[role='option'], option")
-                        for item in menu_items:
-                            item_text = (item.get_attribute('innerText') or '').strip().lower()
-                            if 'desencolar' in item_text:
-                                wb.web_browser.execute_script("arguments[0].click();", item)
-                                dequeue_clicked = True
-                                print(f'  -> Clicked "Desencolar" option.')
+                        email_btn = target_row.find_element(By.CSS_SELECTOR, "a[onclick*='sendConfirmationMail']")
+                        onclick_attr = email_btn.get_attribute('onclick') or ''
+                        match = re.search(r"sendConfirmationMail\((\d+),\s*'([^']+)',\s*'show'\)", onclick_attr)
+                        if match:
+                            booking_id = match.group(1)
+                            short_id = match.group(2)
+                    except:
+                        pass
+
+                if not booking_id or not short_id:
+                    print(f'  -> [WARN] Could not extract booking_id={booking_id} or short_id={short_id}')
+                    continue
+
+                print(f'  -> booking_id={booking_id}, short_id={short_id}')
+                print(f'  -> Calling sendConfirmationMail via JS...')
+
+                # Execute the sendConfirmationMail function directly via JavaScript
+                wb.web_browser.execute_script(
+                    f"sendConfirmationMail({booking_id}, '{short_id}', 'show');"
+                )
+                print(f'  -> Waiting 10s for email actions menu to load...')
+                time.sleep(10)
+
+                # The AJAX menu loads into #booking_actions_container_BOOKING_ID
+                container_id = f"booking_actions_container_{booking_id}"
+                dequeue_clicked = False
+
+                try:
+                    container = wb.web_browser.find_element(By.ID, container_id)
+                    print(f'  -> Found actions container #{container_id}')
+
+                    # Find the select[name='mailMenuOption'] inside the container
+                    select_el = container.find_element(By.CSS_SELECTOR, "select[name='mailMenuOption']")
+                    from selenium.webdriver.support.ui import Select
+                    select_obj = Select(select_el)
+
+                    # List all options for debugging
+                    for opt in select_obj.options:
+                        opt_text = opt.text.strip()
+                        print(f'     Option: "{opt_text}"')
+
+                    # Find and select the desencolar option
+                    for option in select_obj.options:
+                        opt_text = (option.text or '').strip().lower()
+                        if 'desencolar' in opt_text:
+                            select_obj.select_by_visible_text(option.text.strip())
+                            dequeue_clicked = True
+                            print(f'  -> Selected "Desencolar" option from dropdown.')
+                            break
+
+                except Exception as container_err:
+                    print(f'  -> Error finding actions container or select: {container_err}')
+                    # Fallback: try finding any select with desencolar option on the page
+                    try:
+                        all_selects = wb.web_browser.find_elements(By.CSS_SELECTOR, "select[name='mailMenuOption']")
+                        for sel in all_selects:
+                            select_obj = Select(sel)
+                            for option in select_obj.options:
+                                opt_text = (option.text or '').strip().lower()
+                                if 'desencolar' in opt_text:
+                                    select_obj.select_by_visible_text(option.text.strip())
+                                    dequeue_clicked = True
+                                    print(f'  -> Selected "Desencolar" from fallback select.')
+                                    break
+                            if dequeue_clicked:
                                 break
                     except:
                         pass
 
                 if dequeue_clicked:
+                    time.sleep(2)
+
+                    # Now click the submit/execute button in the container
+                    try:
+                        container = wb.web_browser.find_element(By.ID, container_id)
+                        submit_btn = container.find_element(By.CSS_SELECTOR, "button[type='submit'], input[type='submit'], button.btn-primary, button.btn-success")
+                        wb.web_browser.execute_script("arguments[0].click();", submit_btn)
+                        print(f'  -> Clicked submit button.')
+                    except:
+                        # Try any submit button near the select
+                        for confirm_sel in ["button[type='submit']", "input[type='submit']", "button.btn-primary"]:
+                            try:
+                                confirm_btn = wb.web_browser.find_element(By.CSS_SELECTOR, confirm_sel)
+                                wb.web_browser.execute_script("arguments[0].click();", confirm_btn)
+                                print(f'  -> Clicked fallback submit button.')
+                                break
+                            except:
+                                continue
+
                     time.sleep(3)
+
                     # Check for confirmation dialog and accept
                     try:
                         alert = wb.web_browser.switch_to.alert
@@ -1928,29 +2004,11 @@ def dequeue_negative_review_emails(negative_entries):
                         print(f'  -> Confirmation alert accepted.')
                     except:
                         pass
-                    # Also try clicking any confirm/ok buttons
-                    for confirm_sel in ["button.btn-primary", "button.btn-success", "input[type='submit']", "button[type='submit']"]:
-                        try:
-                            confirm_btn = wb.web_browser.find_element(By.CSS_SELECTOR, confirm_sel)
-                            wb.web_browser.execute_script("arguments[0].click();", confirm_btn)
-                            break
-                        except:
-                            continue
-                    time.sleep(3)
+
+                    time.sleep(2)
                     print(f'  -> [OK] Review email dequeued for {booking_code}!')
                 else:
-                    print(f'  -> [WARN] Could not find "Desencolar" option.')
-                    # Close any open dialog
-                    try:
-                        for close_sel in ["button.btn-danger", "a.close", "button[data-dismiss]"]:
-                            try:
-                                close_btn = wb.web_browser.find_element(By.CSS_SELECTOR, close_sel)
-                                wb.web_browser.execute_script("arguments[0].click();", close_btn)
-                                break
-                            except:
-                                continue
-                    except:
-                        pass
+                    print(f'  -> [WARN] Could not find "Desencolar" option in the menu.')
 
             except Exception as e_entry:
                 print(f'  [ERROR] Processing negative entry: {e_entry}, line: {e_entry.__traceback__.tb_lineno}')
