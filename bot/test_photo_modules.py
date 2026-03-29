@@ -848,8 +848,13 @@ def scrape_turitop_for_date(target_day, target_month):
 
 
 def delete_sent_photos_from_group(msg_ids):
-    """Navigate to photo group and delete all sent messages ('Eliminar para mí').
-    Opens the group once and deletes all messages from there."""
+    """Navigate to photo group and delete all successfully sent messages ('Eliminar para mí').
+    Opens the group once and deletes all messages from there.
+
+    Uses the real WhatsApp Web HTML structure:
+    - Context menu items: div[role='menuitem'][aria-label='Eliminar']
+    - Confirmation dialog buttons: <button> with text 'Eliminar para mí'
+    """
     deleted_count = 0
     try:
         print(f'\n========== MODULE 6: Deleting {len(msg_ids)} sent photos from group ==========')
@@ -952,7 +957,7 @@ def delete_sent_photos_from_group(msg_ids):
 
                 # Hover over the message to reveal the dropdown arrow
                 ActionChains(wb.web_browser).move_to_element(msg_el).perform()
-                time.sleep(1)
+                time.sleep(1.5)
 
                 # Click the dropdown arrow (context menu trigger)
                 down_arrow = None
@@ -960,8 +965,6 @@ def delete_sent_photos_from_group(msg_ids):
                     "span[data-icon='down-context']",
                     "span[data-icon='menu']",
                     "span[data-icon='down']",
-                    "div[role='button'][aria-label*='menú']",
-                    "div[role='button'][aria-label*='Menu']",
                 ]:
                     try:
                         down_arrow = msg_el.find_element(By.CSS_SELECTOR, arrow_sel)
@@ -970,8 +973,11 @@ def delete_sent_photos_from_group(msg_ids):
                         continue
 
                 if not down_arrow:
-                    # Try finding it globally after hover
-                    for arrow_sel in ["span[data-icon='down-context']", "span[data-icon='menu']"]:
+                    # Try finding it globally after hover (arrow may be outside msg div)
+                    for arrow_sel in [
+                        "span[data-icon='down-context']",
+                        "span[data-icon='menu']",
+                    ]:
                         try:
                             down_arrow = wb.web_browser.find_element(By.CSS_SELECTOR, arrow_sel)
                             break
@@ -983,58 +989,81 @@ def delete_sent_photos_from_group(msg_ids):
                     continue
 
                 wb.web_browser.execute_script("arguments[0].click();", down_arrow)
-                time.sleep(1)
+                time.sleep(1.5)
 
-                # Click "Eliminar" in the context menu
+                # Step 1: Click "Eliminar" in the context menu
+                # Real selector: div[role='menuitem'][aria-label='Eliminar']
                 delete_clicked = False
-                menu_items = wb.web_browser.find_elements(
-                    By.CSS_SELECTOR, "div[role='application'] li, div[tabindex='-1'] div[role='button']"
-                )
-                for item in menu_items:
-                    item_text = (item.get_attribute('innerText') or '').strip().lower()
-                    if 'eliminar' in item_text or 'delete' in item_text or 'borrar' in item_text:
-                        wb.web_browser.execute_script("arguments[0].click();", item)
-                        delete_clicked = True
-                        break
+
+                # Method 1: Use aria-label selector (most reliable from real HTML)
+                try:
+                    delete_item = wb.web_browser.find_element(
+                        By.CSS_SELECTOR, "div[role='menuitem'][aria-label='Eliminar']"
+                    )
+                    wb.web_browser.execute_script("arguments[0].click();", delete_item)
+                    delete_clicked = True
+                    print(f'     Clicked "Eliminar" via aria-label.')
+                except:
+                    pass
+
+                # Method 2: Search all menu items by text
+                if not delete_clicked:
+                    try:
+                        menu_items = wb.web_browser.find_elements(
+                            By.CSS_SELECTOR, "div[role='menuitem']"
+                        )
+                        for item in menu_items:
+                            item_text = (item.get_attribute('innerText') or '').strip().lower()
+                            if item_text == 'eliminar' or item_text == 'delete':
+                                wb.web_browser.execute_script("arguments[0].click();", item)
+                                delete_clicked = True
+                                print(f'     Clicked "Eliminar" via text match.')
+                                break
+                    except:
+                        pass
 
                 if not delete_clicked:
-                    for sel in ["li[data-animate-dropdown-item]", "div[role='listitem']"]:
-                        try:
-                            items = wb.web_browser.find_elements(By.CSS_SELECTOR, sel)
-                            for item in items:
-                                txt = (item.get_attribute('innerText') or '').lower()
-                                if 'eliminar' in txt or 'delete' in txt:
-                                    wb.web_browser.execute_script("arguments[0].click();", item)
-                                    delete_clicked = True
-                                    break
-                        except:
-                            continue
-                        if delete_clicked:
-                            break
-
-                if not delete_clicked:
-                    print(f'     [WARN] Could not find "Eliminar" in menu.')
+                    print(f'     [WARN] Could not find "Eliminar" in context menu.')
                     ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
                     time.sleep(1)
                     continue
 
                 time.sleep(2)
 
-                # Click "Eliminar para mí" in the confirmation dialog
+                # Step 2: Click "Eliminar para mí" in the confirmation dialog
+                # Real HTML: <button> elements inside a modal dialog
+                # The button text is "Eliminar para mí" (2nd button in the dialog)
                 confirm_clicked = False
-                for btn_sel in ["button", "div[role='button']"]:
+
+                # Method 1: Find all buttons and match by text
+                try:
+                    buttons = wb.web_browser.find_elements(By.CSS_SELECTOR, "button")
+                    for btn in buttons:
+                        btn_text = (btn.get_attribute('innerText') or '').strip().lower()
+                        if 'eliminar para mí' in btn_text or 'delete for me' in btn_text:
+                            wb.web_browser.execute_script("arguments[0].click();", btn)
+                            confirm_clicked = True
+                            print(f'     Clicked "Eliminar para mí".')
+                            break
+                except:
+                    pass
+
+                # Method 2: The dialog has data-animate-modal-popup, find buttons inside it
+                if not confirm_clicked:
                     try:
-                        buttons = wb.web_browser.find_elements(By.CSS_SELECTOR, btn_sel)
-                        for btn in buttons:
+                        modal = wb.web_browser.find_element(
+                            By.CSS_SELECTOR, "div[data-animate-modal-popup='true']"
+                        )
+                        modal_buttons = modal.find_elements(By.CSS_SELECTOR, "button")
+                        for btn in modal_buttons:
                             btn_text = (btn.get_attribute('innerText') or '').strip().lower()
-                            if 'para mí' in btn_text or 'for me' in btn_text or 'eliminar para' in btn_text:
+                            if 'para mí' in btn_text or 'for me' in btn_text:
                                 wb.web_browser.execute_script("arguments[0].click();", btn)
                                 confirm_clicked = True
+                                print(f'     Clicked "Eliminar para mí" from modal.')
                                 break
-                        if confirm_clicked:
-                            break
                     except:
-                        continue
+                        pass
 
                 if not confirm_clicked:
                     print(f'     [WARN] Could not confirm "Eliminar para mí".')
