@@ -978,21 +978,45 @@ def delete_sent_photos_from_group(msg_ids):
                 time.sleep(1.5)
 
                 # Step 1: Click "Eliminar" in the context menu
-                # Real selector: div[role='menuitem'][aria-label='Eliminar']
+                # Real HTML: div containing SVG with <title>ic-delete</title>
                 delete_clicked = False
 
-                # Method 1: Use aria-label selector (most reliable from real HTML)
+                # Method 1: Find SVG with title "ic-delete" and click its parent container
                 try:
-                    delete_item = wb.web_browser.find_element(
-                        By.CSS_SELECTOR, "div[role='menuitem'][aria-label='Eliminar']"
+                    delete_icon = wb.web_browser.find_element(
+                        By.XPATH, "//svg[title='ic-delete']/ancestor::div[contains(@class,'html-div')]"
                     )
-                    wb.web_browser.execute_script("arguments[0].click();", delete_item)
+                    delete_icon.click()
                     delete_clicked = True
-                    print(f'     Clicked "Eliminar" via aria-label.')
+                    print(f'     Clicked "Eliminar" via ic-delete icon.')
                 except:
                     pass
 
-                # Method 2: Search all menu items by text
+                # Method 2: Find by XPath text content
+                if not delete_clicked:
+                    try:
+                        delete_item = wb.web_browser.find_element(
+                            By.XPATH, "//*[contains(text(),'Eliminar')]"
+                        )
+                        delete_item.click()
+                        delete_clicked = True
+                        print(f'     Clicked "Eliminar" via text XPath.')
+                    except:
+                        pass
+
+                # Method 3: Use aria-label selector
+                if not delete_clicked:
+                    try:
+                        delete_item = wb.web_browser.find_element(
+                            By.CSS_SELECTOR, "div[role='menuitem'][aria-label='Eliminar']"
+                        )
+                        delete_item.click()
+                        delete_clicked = True
+                        print(f'     Clicked "Eliminar" via aria-label.')
+                    except:
+                        pass
+
+                # Method 4: Search all menu items by text
                 if not delete_clicked:
                     try:
                         menu_items = wb.web_browser.find_elements(
@@ -1001,9 +1025,9 @@ def delete_sent_photos_from_group(msg_ids):
                         for item in menu_items:
                             item_text = (item.get_attribute('innerText') or '').strip().lower()
                             if item_text == 'eliminar' or item_text == 'delete':
-                                wb.web_browser.execute_script("arguments[0].click();", item)
+                                item.click()
                                 delete_clicked = True
-                                print(f'     Clicked "Eliminar" via text match.')
+                                print(f'     Clicked "Eliminar" via menuitem text match.')
                                 break
                     except:
                         pass
@@ -1014,37 +1038,47 @@ def delete_sent_photos_from_group(msg_ids):
                     time.sleep(1)
                     continue
 
-                time.sleep(2)
+                time.sleep(3)
 
                 # Step 2: Click "Eliminar para mí" in the confirmation dialog
-                # Real HTML: <button> elements inside a modal dialog
-                # The button text is "Eliminar para mí" (2nd button in the dialog)
                 confirm_clicked = False
 
                 # Method 1: Find all buttons and match by text
                 try:
-                    buttons = wb.web_browser.find_elements(By.CSS_SELECTOR, "button")
+                    buttons = wb.web_browser.find_elements(By.TAG_NAME, "button")
                     for btn in buttons:
                         btn_text = (btn.get_attribute('innerText') or '').strip().lower()
                         if 'eliminar para mí' in btn_text or 'delete for me' in btn_text:
-                            wb.web_browser.execute_script("arguments[0].click();", btn)
+                            btn.click()
                             confirm_clicked = True
                             print(f'     Clicked "Eliminar para mí".')
                             break
                 except:
                     pass
 
-                # Method 2: The dialog has data-animate-modal-popup, find buttons inside it
+                # Method 2: Find via XPath text
+                if not confirm_clicked:
+                    try:
+                        confirm_btn = wb.web_browser.find_element(
+                            By.XPATH, "//button[contains(translate(., 'ELIMNARPÍ', 'elimnarpí'), 'eliminar para mí')]"
+                        )
+                        confirm_btn.click()
+                        confirm_clicked = True
+                        print(f'     Clicked "Eliminar para mí" via XPath.')
+                    except:
+                        pass
+
+                # Method 3: The dialog has data-animate-modal-popup, find buttons inside it
                 if not confirm_clicked:
                     try:
                         modal = wb.web_browser.find_element(
                             By.CSS_SELECTOR, "div[data-animate-modal-popup='true']"
                         )
-                        modal_buttons = modal.find_elements(By.CSS_SELECTOR, "button")
+                        modal_buttons = modal.find_elements(By.TAG_NAME, "button")
                         for btn in modal_buttons:
                             btn_text = (btn.get_attribute('innerText') or '').strip().lower()
                             if 'para mí' in btn_text or 'for me' in btn_text:
-                                wb.web_browser.execute_script("arguments[0].click();", btn)
+                                btn.click()
                                 confirm_clicked = True
                                 print(f'     Clicked "Eliminar para mí" from modal.')
                                 break
