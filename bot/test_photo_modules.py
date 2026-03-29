@@ -977,64 +977,47 @@ def delete_sent_photos_from_group(msg_ids):
                 ActionChains(wb.web_browser).context_click(msg_el).perform()
                 time.sleep(1.5)
 
-                # Step 1: Click "Eliminar" in the context menu
-                # Real HTML: div containing SVG with <title>ic-delete</title>
+                # Right-click selects the message → bottom toolbar appears with trash icon
+                # Wait for "1 seleccionado" toolbar to appear
+                time.sleep(1.5)
+
+                # Step 1: Click the trash button in the bottom toolbar
+                # Real HTML: <button aria-label="Eliminar"> with SVG title="ic-delete"
                 delete_clicked = False
 
-                # Method 1: Find SVG with title "ic-delete" and click its parent container
+                # Method 1: Find button with aria-label="Eliminar" (the trash icon button)
                 try:
-                    delete_icon = wb.web_browser.find_element(
-                        By.XPATH, "//svg[title='ic-delete']/ancestor::div[contains(@class,'html-div')]"
+                    delete_btn = wb.web_browser.find_element(
+                        By.CSS_SELECTOR, "button[aria-label='Eliminar']"
                     )
-                    delete_icon.click()
+                    delete_btn.click()
                     delete_clicked = True
-                    print(f'     Clicked "Eliminar" via ic-delete icon.')
+                    print(f'     Clicked trash button (aria-label="Eliminar").')
                 except:
                     pass
 
-                # Method 2: Find by XPath text content
+                # Method 2: Find button containing SVG with title "ic-delete"
                 if not delete_clicked:
                     try:
-                        delete_item = wb.web_browser.find_element(
-                            By.XPATH, "//*[contains(text(),'Eliminar')]"
+                        delete_btn = wb.web_browser.find_element(
+                            By.XPATH, "//button[.//svg/title[text()='ic-delete']]"
                         )
-                        delete_item.click()
+                        delete_btn.click()
                         delete_clicked = True
-                        print(f'     Clicked "Eliminar" via text XPath.')
+                        print(f'     Clicked trash button via ic-delete SVG.')
                     except:
                         pass
 
-                # Method 3: Use aria-label selector
                 if not delete_clicked:
+                    print(f'     [WARN] Could not find trash button. Skipping.')
+                    # Cancel selection
                     try:
-                        delete_item = wb.web_browser.find_element(
-                            By.CSS_SELECTOR, "div[role='menuitem'][aria-label='Eliminar']"
+                        cancel_btn = wb.web_browser.find_element(
+                            By.CSS_SELECTOR, "button[aria-label='Cancelar eliminación']"
                         )
-                        delete_item.click()
-                        delete_clicked = True
-                        print(f'     Clicked "Eliminar" via aria-label.')
+                        cancel_btn.click()
                     except:
-                        pass
-
-                # Method 4: Search all menu items by text
-                if not delete_clicked:
-                    try:
-                        menu_items = wb.web_browser.find_elements(
-                            By.CSS_SELECTOR, "div[role='menuitem']"
-                        )
-                        for item in menu_items:
-                            item_text = (item.get_attribute('innerText') or '').strip().lower()
-                            if item_text == 'eliminar' or item_text == 'delete':
-                                item.click()
-                                delete_clicked = True
-                                print(f'     Clicked "Eliminar" via menuitem text match.')
-                                break
-                    except:
-                        pass
-
-                if not delete_clicked:
-                    print(f'     [WARN] Could not find "Eliminar" in context menu.')
-                    ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+                        ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
                     time.sleep(1)
                     continue
 
@@ -1043,7 +1026,7 @@ def delete_sent_photos_from_group(msg_ids):
                 # Step 2: Click "Eliminar para mí" in the confirmation dialog
                 confirm_clicked = False
 
-                # Method 1: Find all buttons and match by text
+                # Method 1: Find button by text "Eliminar para mí"
                 try:
                     buttons = wb.web_browser.find_elements(By.TAG_NAME, "button")
                     for btn in buttons:
@@ -1056,11 +1039,11 @@ def delete_sent_photos_from_group(msg_ids):
                 except:
                     pass
 
-                # Method 2: Find via XPath text
+                # Method 2: Find via XPath
                 if not confirm_clicked:
                     try:
                         confirm_btn = wb.web_browser.find_element(
-                            By.XPATH, "//button[contains(translate(., 'ELIMNARPÍ', 'elimnarpí'), 'eliminar para mí')]"
+                            By.XPATH, "//button[contains(., 'Eliminar para mí')]"
                         )
                         confirm_btn.click()
                         confirm_clicked = True
@@ -1068,7 +1051,7 @@ def delete_sent_photos_from_group(msg_ids):
                     except:
                         pass
 
-                # Method 3: The dialog has data-animate-modal-popup, find buttons inside it
+                # Method 3: Find inside modal popup
                 if not confirm_clicked:
                     try:
                         modal = wb.web_browser.find_element(
