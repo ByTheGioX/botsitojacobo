@@ -872,7 +872,8 @@ def delete_sent_photos_from_group(msg_ids):
 
         # Navigate to WhatsApp main page to reset state
         wb.get("https://web.whatsapp.com")
-        time.sleep(5)
+        print('  Waiting for WhatsApp to load...')
+        time.sleep(15)
 
         # Press ESC to close any open dialogs/panels
         ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
@@ -881,6 +882,7 @@ def delete_sent_photos_from_group(msg_ids):
         time.sleep(1)
 
         # Find and click the search box (same approach as Module 1)
+        print(f'  Searching for group: "{photo_group_name}"')
         search_clicked = wb.css_click_with_timer(
             "div[contenteditable='true'][data-tab='3']", 15
         )
@@ -889,20 +891,29 @@ def delete_sent_photos_from_group(msg_ids):
                 "div[role='textbox'][data-tab='3']", 10
             )
         if not search_clicked:
+            search_clicked = wb.x_click_with_timer(
+                "//div[@data-tab='3']", 10
+            )
+        print(f'  Search box clicked: {search_clicked}')
+        if not search_clicked:
             print('  [ERROR] Could not find WhatsApp search box. Aborting deletion.')
             print('========== MODULE 6 DONE: 0 photos deleted ==========')
             return 0
 
-        time.sleep(1)
+        time.sleep(2)
 
-        # Type the group name using clipboard paste
+        # Type the group name (same approach as Module 1 - using send_keys)
         search_box = None
-        for selector in [
-            "div[contenteditable='true'][data-tab='3']",
-            "div[role='textbox'][data-tab='3']",
-        ]:
+        selectors_to_try = [
+            ("div[contenteditable='true'][data-tab='3']", By.CSS_SELECTOR),
+            ("div[role='textbox'][data-tab='3']", By.CSS_SELECTOR),
+            ("//input[@type='text']", By.XPATH),
+            ("input[type='text']", By.CSS_SELECTOR),
+        ]
+
+        for selector, by_type in selectors_to_try:
             try:
-                search_box = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
+                search_box = wb.web_browser.find_element(by_type, selector)
                 if search_box:
                     break
             except:
@@ -913,34 +924,40 @@ def delete_sent_photos_from_group(msg_ids):
             print('========== MODULE 6 DONE: 0 photos deleted ==========')
             return 0
 
-        wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", search_box)
-        time.sleep(1)
-        pyperclip.copy(photo_group_name)
-        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+        try:
+            search_box.clear()
+        except:
+            pass
+        search_box.send_keys(photo_group_name)
         time.sleep(3)
 
-        # Click on the group in search results
-        group_found = False
-        for sel in [
-            f"span[title='{photo_group_name}']",
-            f"span[title*='{photo_group_name.split()[0]}']"
-        ]:
-            try:
-                group_el = wb.web_browser.find_element(By.CSS_SELECTOR, sel)
-                wb.web_browser.execute_script("arguments[0].click();", group_el)
-                group_found = True
-                break
-            except:
-                continue
+        # Click on the group in search results (same approach as Module 1 - using XPath)
+        group_found = wb.x_click_with_timer(
+            f"//span[@title='{photo_group_name}']", 15
+        )
+        if not group_found:
+            # Fallback: try CSS selector
+            for sel in [
+                f"span[title='{photo_group_name}']",
+                f"span[title*='{photo_group_name.split()[0]}']"
+            ]:
+                try:
+                    group_el = wb.web_browser.find_element(By.CSS_SELECTOR, sel)
+                    wb.web_browser.execute_script("arguments[0].click();", group_el)
+                    group_found = True
+                    break
+                except:
+                    continue
 
+        print(f'  Group clicked: {group_found}')
         if not group_found:
             print('  [ERROR] Could not find photo group in search results.')
             ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
             print('========== MODULE 6 DONE: 0 photos deleted ==========')
             return 0
 
-        print(f'  Opened group "{photo_group_name}". Waiting for messages to load...')
-        time.sleep(5)
+        print(f'  Waiting for chat to load...')
+        time.sleep(10)
 
         # Now delete each message one by one (already inside the group)
         for msg_id in msg_ids:
