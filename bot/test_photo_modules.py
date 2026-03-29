@@ -62,8 +62,15 @@ negative_review_template_fp = os.path.join(sys.path[0], 'data', 'negative_review
 bad_caption_ids_fp = os.path.join(sys.path[0], 'data', 'bad_caption_replied_ids.json')
 failed_sends_fp = os.path.join(sys.path[0], 'data', 'failed_photo_sends.json')
 
-# Photo to send with positive review response (client can change this file)
-review_photo_fp = os.path.join(sys.path[0], 'data', 'review_photo.jpg')
+# Photo to send with positive review response (client can use .jpg, .jpeg, or .png)
+review_photo_fp = None
+for _ext in ['jpg', 'jpeg', 'png']:
+    _candidate = os.path.join(sys.path[0], 'data', f'review_photo.{_ext}')
+    if os.path.exists(_candidate):
+        review_photo_fp = _candidate
+        break
+if not review_photo_fp:
+    review_photo_fp = os.path.join(sys.path[0], 'data', 'review_photo.jpg')  # default for error msg
 
 sala_to_places = {
     '4e': ['P1'],
