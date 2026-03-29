@@ -2055,35 +2055,65 @@ def dequeue_negative_review_emails(negative_entries):
                 if dequeue_clicked:
                     time.sleep(2)
 
-                    # Now click the submit/execute button in the container
+                    # Click the "Confirmar" button which calls deleteSurvey()
+                    # The real HTML has: <a class="btn submit5 add" onclick="deleteSurvey(ID, 'SHORT_ID', 'send');">Confirmar</a>
+                    confirm_clicked = False
+
+                    # Method 1: Call deleteSurvey() directly via JavaScript (most reliable)
                     try:
-                        container = wb.web_browser.find_element(By.ID, container_id)
-                        submit_btn = container.find_element(By.CSS_SELECTOR, "button[type='submit'], input[type='submit'], button.btn-primary, button.btn-success")
-                        wb.web_browser.execute_script("arguments[0].click();", submit_btn)
-                        print(f'  -> Clicked submit button.')
-                    except:
-                        # Try any submit button near the select
-                        for confirm_sel in ["button[type='submit']", "input[type='submit']", "button.btn-primary"]:
-                            try:
-                                confirm_btn = wb.web_browser.find_element(By.CSS_SELECTOR, confirm_sel)
-                                wb.web_browser.execute_script("arguments[0].click();", confirm_btn)
-                                print(f'  -> Clicked fallback submit button.')
-                                break
-                            except:
-                                continue
+                        print(f'  -> Calling deleteSurvey({booking_id}, {short_id}, send) via JS...')
+                        wb.web_browser.execute_script(
+                            f"deleteSurvey({booking_id}, '{short_id}', 'send');"
+                        )
+                        confirm_clicked = True
+                        print(f'  -> deleteSurvey() called successfully.')
+                    except Exception as js_err:
+                        print(f'  -> JS deleteSurvey failed: {js_err}')
 
-                    time.sleep(3)
+                    # Method 2: Fallback - find and click the "Confirmar" <a> button in the container
+                    if not confirm_clicked:
+                        try:
+                            container = wb.web_browser.find_element(By.ID, container_id)
+                            # The button is an <a> with class "btn submit5 add" inside .unqueueSurveyOptions
+                            confirm_btn = container.find_element(
+                                By.CSS_SELECTOR,
+                                ".unqueueSurveyOptions a.btn"
+                            )
+                            wb.web_browser.execute_script("arguments[0].click();", confirm_btn)
+                            confirm_clicked = True
+                            print(f'  -> Clicked "Confirmar" button via CSS selector.')
+                        except Exception as btn_err:
+                            print(f'  -> Fallback button click failed: {btn_err}')
 
-                    # Check for confirmation dialog and accept
-                    try:
-                        alert = wb.web_browser.switch_to.alert
-                        alert.accept()
-                        print(f'  -> Confirmation alert accepted.')
-                    except:
-                        pass
+                    # Method 3: Last resort - find any <a> with text "Confirmar" in the container
+                    if not confirm_clicked:
+                        try:
+                            container = wb.web_browser.find_element(By.ID, container_id)
+                            all_links = container.find_elements(By.TAG_NAME, "a")
+                            for link in all_links:
+                                if 'confirmar' in (link.text or '').strip().lower():
+                                    wb.web_browser.execute_script("arguments[0].click();", link)
+                                    confirm_clicked = True
+                                    print(f'  -> Clicked "Confirmar" link by text match.')
+                                    break
+                        except:
+                            pass
 
-                    time.sleep(2)
-                    print(f'  -> [OK] Review email dequeued for {booking_code}!')
+                    if confirm_clicked:
+                        time.sleep(5)
+
+                        # Check for confirmation dialog and accept
+                        try:
+                            alert = wb.web_browser.switch_to.alert
+                            alert.accept()
+                            print(f'  -> Confirmation alert accepted.')
+                        except:
+                            pass
+
+                        time.sleep(3)
+                        print(f'  -> [OK] Review email dequeued for {booking_code}!')
+                    else:
+                        print(f'  -> [WARN] Could not click "Confirmar" button for {booking_code}.')
                 else:
                     print(f'  -> [WARN] Could not find "Desencolar" option in the menu.')
 
