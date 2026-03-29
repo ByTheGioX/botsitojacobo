@@ -967,40 +967,14 @@ def delete_sent_photos_from_group(msg_ids):
                     deleted_count += 1  # Count as success - it's gone
                     continue
 
-                # Hover over the message to reveal the dropdown arrow
+                # Scroll to the message so it's visible
+                wb.web_browser.execute_script("arguments[0].scrollIntoView({block: 'center'});", msg_el)
+                time.sleep(1)
+
+                # Right-click the message to open context menu (more reliable than hover + arrow)
                 ActionChains(wb.web_browser).move_to_element(msg_el).perform()
-                time.sleep(1.5)
-
-                # Click the dropdown arrow (context menu trigger)
-                down_arrow = None
-                for arrow_sel in [
-                    "span[data-icon='down-context']",
-                    "span[data-icon='menu']",
-                    "span[data-icon='down']",
-                ]:
-                    try:
-                        down_arrow = msg_el.find_element(By.CSS_SELECTOR, arrow_sel)
-                        break
-                    except:
-                        continue
-
-                if not down_arrow:
-                    # Try finding it globally after hover (arrow may be outside msg div)
-                    for arrow_sel in [
-                        "span[data-icon='down-context']",
-                        "span[data-icon='menu']",
-                    ]:
-                        try:
-                            down_arrow = wb.web_browser.find_element(By.CSS_SELECTOR, arrow_sel)
-                            break
-                        except:
-                            continue
-
-                if not down_arrow:
-                    print(f'     [WARN] Could not find dropdown arrow. Skipping.')
-                    continue
-
-                wb.web_browser.execute_script("arguments[0].click();", down_arrow)
+                time.sleep(1)
+                ActionChains(wb.web_browser).context_click(msg_el).perform()
                 time.sleep(1.5)
 
                 # Step 1: Click "Eliminar" in the context menu
