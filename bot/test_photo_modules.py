@@ -881,8 +881,10 @@ def delete_sent_photos_from_group(msg_ids):
         ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
         time.sleep(1)
 
-        # Find and click the search box (same approach as Module 1)
+        # Navigate to group — exact same logic as Module 1
         print(f'  Searching for group: "{photo_group_name}"')
+
+        # Click search box (best-effort, Module 1 also gets False here but still works)
         search_clicked = wb.css_click_with_timer(
             "div[contenteditable='true'][data-tab='3']", 15
         )
@@ -895,14 +897,9 @@ def delete_sent_photos_from_group(msg_ids):
                 "//div[@data-tab='3']", 10
             )
         print(f'  Search box clicked: {search_clicked}')
-        if not search_clicked:
-            print('  [ERROR] Could not find WhatsApp search box. Aborting deletion.')
-            print('========== MODULE 6 DONE: 0 photos deleted ==========')
-            return 0
-
         time.sleep(2)
 
-        # Type the group name (same approach as Module 1 - using send_keys)
+        # Try to type group name in search box (best-effort)
         search_box = None
         selectors_to_try = [
             ("div[contenteditable='true'][data-tab='3']", By.CSS_SELECTOR),
@@ -919,19 +916,17 @@ def delete_sent_photos_from_group(msg_ids):
             except:
                 continue
 
-        if not search_box:
-            print('  [ERROR] Could not locate search box element.')
-            print('========== MODULE 6 DONE: 0 photos deleted ==========')
-            return 0
+        if search_box:
+            try:
+                search_box.clear()
+            except:
+                pass
+            search_box.send_keys(photo_group_name)
+            time.sleep(3)
+        else:
+            print('  Search box not found, trying to click group directly...')
 
-        try:
-            search_box.clear()
-        except:
-            pass
-        search_box.send_keys(photo_group_name)
-        time.sleep(3)
-
-        # Click on the group in search results (same approach as Module 1 - using XPath)
+        # Click on the group (works even without search — group may be visible in sidebar)
         group_found = wb.x_click_with_timer(
             f"//span[@title='{photo_group_name}']", 15
         )
@@ -951,12 +946,12 @@ def delete_sent_photos_from_group(msg_ids):
 
         print(f'  Group clicked: {group_found}')
         if not group_found:
-            print('  [ERROR] Could not find photo group in search results.')
+            print('  [ERROR] Could not find photo group.')
             ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
             print('========== MODULE 6 DONE: 0 photos deleted ==========')
             return 0
 
-        print(f'  Waiting for chat to load...')
+        print('  Waiting for chat to load...')
         time.sleep(10)
 
         # Now delete each message one by one (already inside the group)
