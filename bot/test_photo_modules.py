@@ -302,23 +302,30 @@ class Browser:
 def parse_photo_caption(caption_text):
     caption_text = caption_text.lower().strip()
     # Use search instead of match to find the pattern anywhere in the text block
-    # Format: dd/m HH:MM[/mm] sala[/sala2/sala3...]
+    # Format: dd/m HH:MM[/mm[/mm[/mm]]] sala[/sala2/sala3/sala4]
+    # Examples:
+    #   29/3 16:00 4e                     → 1 sala, 1 hora
+    #   29/3 16:00/10 4e/csi              → 2 salas, 2 horas (16:00, 16:10)
+    #   29/3 16:00/10/20 4e/maf/csi       → 3 salas, 3 horas (16:00, 16:10, 16:20)
+    #   29/3 16:00/10/20/30 4e/maf/csi/tri → 4 salas, 4 horas (16:00, 16:10, 16:20, 16:30)
     match = re.search(
-        r'(\d{1,2}/\d{1,2})\s+(\d{1,2}:\d{2})(?:/(\d{2}))?\s+((?:4e|csi|maf|tri)(?:/(?:4e|csi|maf|tri))*)',
+        r'(\d{1,2}/\d{1,2})\s+(\d{1,2}:\d{2}(?:/\d{2})*)\s+((?:4e|csi|maf|tri)(?:/(?:4e|csi|maf|tri))*)',
         caption_text
     )
     if not match:
         return None
 
     date_str = match.group(1)
-    time1 = match.group(2)
-    time2_min = match.group(3)
-    salas = match.group(4).split('/')
+    time_part = match.group(2)   # e.g. "16:00/10/20/30"
+    salas = match.group(3).split('/')
 
+    # Parse times: first is full HH:MM, rest are just minutes with same hour
+    time_parts = time_part.split('/')
+    time1 = time_parts[0]        # e.g. "16:00"
+    hour = time1.split(':')[0]   # e.g. "16"
     times = [time1]
-    if time2_min:
-        hour = time1.split(':')[0]
-        times.append(f"{hour}:{time2_min}")
+    for extra_min in time_parts[1:]:
+        times.append(f"{hour}:{extra_min}")
 
     return {'date': date_str, 'times': times, 'salas': salas}
 
