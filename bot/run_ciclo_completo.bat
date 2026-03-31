@@ -35,7 +35,12 @@ echo.
 echo [3/4] Limpiando Chrome entre bots...
 taskkill /f /im chrome.exe        2>nul
 taskkill /f /im chromedriver.exe  2>nul
-timeout /t 5 /nobreak >nul
+timeout /t 3 /nobreak >nul
+:: Limpiar lock files del perfil Chrome para que el siguiente bot pueda abrirlo
+del /f /q "%USERPROFILE%\Desktop\browser_cache\SingletonLock" 2>nul
+del /f /q "%USERPROFILE%\Desktop\browser_cache\SingletonSocket" 2>nul
+del /f /q "%USERPROFILE%\Desktop\browser_cache\SingletonCookie" 2>nul
+timeout /t 2 /nobreak >nul
 
 :: --- Bot Principal (segundo) ---
 echo.
