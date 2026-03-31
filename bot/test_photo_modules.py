@@ -2279,6 +2279,8 @@ def daily_cleanup():
 # MAIN — Test flow
 # ============================================================
 
+AUTO_MODE = '--auto' in sys.argv  # Pass --auto to skip the "Press Enter" pause
+
 print("\n" + "=" * 60)
 print("  TEST PHOTO MODULES - Script independiente")
 print("=" * 60)
@@ -2329,7 +2331,9 @@ else:
     print("\nNo photos to delete from group — skipping Module 6.")
 
 print("\n" + "=" * 60)
-print("  ALL DONE! Press Enter to close browser and exit.")
+print("  ALL DONE!")
 print("=" * 60)
-input()
+if not AUTO_MODE:
+    print("  Press Enter to close browser and exit.")
+    input()
 wb.web_browser.quit()
