@@ -1303,7 +1303,7 @@ $img = [System.Drawing.Image]::FromFile('{photo_ps_path}')
 [System.Windows.Forms.Clipboard]::SetImage($img)
 $img.Dispose()
 """
-                        subprocess.run(["powershell", "-STA", "-command", ps_script], check=True, timeout=30)
+                        subprocess.run(["powershell", "-STA", "-command", ps_script], check=True, timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
 
                         # 2. Re-focus browser window (PowerShell stole focus)
                         wb.web_browser.switch_to.window(wb.web_browser.current_window_handle)
@@ -1771,7 +1771,7 @@ $img = [System.Drawing.Image]::FromFile('{photo_ps_path}')
 [System.Windows.Forms.Clipboard]::SetImage($img)
 $img.Dispose()
 """
-                            subprocess.run(["powershell", "-STA", "-command", ps_script], check=True, timeout=30)
+                            subprocess.run(["powershell", "-STA", "-command", ps_script], check=True, timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
                             wb.web_browser.switch_to.window(wb.web_browser.current_window_handle)
                             time.sleep(2)
 
