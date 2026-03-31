@@ -28,7 +28,7 @@ echo.
 echo [2/4] Iniciando Bot Principal (reservas y notificaciones)...
 echo       Ruta: %BOT_PRINCIPAL%
 echo       Hora inicio: %time%
-start /wait "Bot Principal" cmd /c "cd /d "%BOT_PRINCIPAL%" && python booking_notifier_ts.py"
+start /wait "Bot Principal" cmd /c "cd /d "%BOT_PRINCIPAL%" && python booking_notifier_keep_browser_opened.py"
 echo       Hora fin:    %time%
 
 :: --- Limpieza entre bots ---
