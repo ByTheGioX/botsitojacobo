@@ -1,12 +1,14 @@
 @echo off
 setlocal
-cd /d "%~dp0"
 
 :: ============================================================
 ::  CICLO COMPLETO - Bot Principal + Bot Fotos
 ::  Ejecuta ambos bots en secuencia sin que choquen.
 ::  Recomendado: programar en Task Scheduler cada 30 minutos.
 :: ============================================================
+
+set BOT_PRINCIPAL=C:\Users\Turitop\Desktop\Booking_bot\bot
+set BOT_FOTOS=C:\Users\Turitop\Desktop\bot\bot
 
 echo.
 echo ============================================================
@@ -24,7 +26,9 @@ timeout /t 3 /nobreak >nul
 :: --- Bot Principal ---
 echo.
 echo [2/4] Iniciando Bot Principal (reservas y notificaciones)...
+echo       Ruta: %BOT_PRINCIPAL%
 echo       Hora inicio: %time%
+cd /d "%BOT_PRINCIPAL%"
 python booking_notifier_ts.py
 echo       Hora fin:    %time%
 echo       Codigo de salida: %errorlevel%
@@ -39,7 +43,9 @@ timeout /t 5 /nobreak >nul
 :: --- Bot Fotos ---
 echo.
 echo [4/4] Iniciando Bot Fotos (fotos, reviews, respuestas)...
+echo       Ruta: %BOT_FOTOS%
 echo       Hora inicio: %time%
+cd /d "%BOT_FOTOS%"
 python test_photo_modules.py --auto
 echo       Hora fin:    %time%
 echo       Codigo de salida: %errorlevel%
