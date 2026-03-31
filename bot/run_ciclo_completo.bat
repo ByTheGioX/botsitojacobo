@@ -23,15 +23,13 @@ taskkill /f /im chromedriver.exe  2>nul
 taskkill /f /im python.exe        2>nul
 timeout /t 3 /nobreak >nul
 
-:: --- Bot Principal ---
+:: --- Bot Principal (ventana propia, espera hasta que termine) ---
 echo.
 echo [2/4] Iniciando Bot Principal (reservas y notificaciones)...
 echo       Ruta: %BOT_PRINCIPAL%
 echo       Hora inicio: %time%
-cd /d "%BOT_PRINCIPAL%"
-python booking_notifier_ts.py
+start /wait "Bot Principal" cmd /c "cd /d "%BOT_PRINCIPAL%" && python booking_notifier_ts.py"
 echo       Hora fin:    %time%
-echo       Codigo de salida: %errorlevel%
 
 :: --- Limpieza entre bots ---
 echo.
@@ -40,15 +38,13 @@ taskkill /f /im chrome.exe        2>nul
 taskkill /f /im chromedriver.exe  2>nul
 timeout /t 5 /nobreak >nul
 
-:: --- Bot Fotos ---
+:: --- Bot Fotos (ventana propia, espera hasta que termine) ---
 echo.
 echo [4/4] Iniciando Bot Fotos (fotos, reviews, respuestas)...
 echo       Ruta: %BOT_FOTOS%
 echo       Hora inicio: %time%
-cd /d "%BOT_FOTOS%"
-python test_photo_modules.py --auto
+start /wait "Bot Fotos" cmd /c "cd /d "%BOT_FOTOS%" && python test_photo_modules.py --auto"
 echo       Hora fin:    %time%
-echo       Codigo de salida: %errorlevel%
 
 :: --- Limpieza final ---
 taskkill /f /im chrome.exe        2>nul

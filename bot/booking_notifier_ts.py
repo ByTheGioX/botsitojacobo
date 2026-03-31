@@ -51,7 +51,7 @@ class Browser:
         self.debug = False
         try:
             o = Options()
-            o.add_argument('--user-data-dir=C:/Users/notification_account/Desktop/important')
+            o.add_argument('--user-data-dir=' + os.path.join(os.environ.get('USERPROFILE', 'C:/Users/Turitop'), 'Desktop', 'booking_bot_profile'))
             o.add_argument('--log-level=3')
 
             for attempt in range(3):
