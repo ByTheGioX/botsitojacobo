@@ -131,7 +131,7 @@ class Browser:
             
             # Autodetect the user's Desktop folder dynamically (works for 'AI', 'Turitop', etc.)
             desktop_path = os.path.join(os.environ['USERPROFILE'], 'Desktop')
-            cache_path = os.path.join(desktop_path, 'booking_bot_profile')
+            cache_path = os.path.join(desktop_path, 'browser_cache')
             o.add_argument(f'--user-data-dir={cache_path}')
             
             o.add_argument('--log-level=3')
