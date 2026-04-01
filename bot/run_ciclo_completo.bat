@@ -31,7 +31,9 @@ echo.
 echo [2/5] Iniciando Bot Fotos (fotos, reviews, respuestas)...
 echo       Ruta: %BOT_FOTOS%
 echo       Hora inicio: %time%
-start /wait "Bot Fotos" cmd /c "cd /d "%BOT_FOTOS%" && python test_photo_modules.py --auto"
+pushd %BOT_FOTOS%
+python test_photo_modules.py --auto
+popd
 echo       Hora fin:    %time%
 
 :: --- Limpieza entre bots ---
@@ -53,10 +55,10 @@ echo       Ruta: %BOT_PRINCIPAL%
 echo       Hora inicio: %time%
 
 :: Limpiar log anterior
-del /f /q "%BOT_LOG%" 2>nul
+del /f /q %BOT_LOG% 2>nul
 
-:: Iniciar bot principal en background con salida a log (-u = unbuffered)
-start "Bot Principal" /B cmd /c "cd /d "%BOT_PRINCIPAL%" && python -u booking_notifier_keep_browser_opened.py > "%BOT_LOG%" 2>&1"
+:: Iniciar bot principal en ventana minimizada con salida a log
+start "BotPrincipal" /min cmd /c "cd /d %BOT_PRINCIPAL% & python -u booking_notifier_keep_browser_opened.py >%BOT_LOG% 2>&1"
 
 :: Esperar a que complete un ciclo (detectar "waiting for 15 minutes" o error de login)
 echo       Esperando a que complete un ciclo...
@@ -68,14 +70,14 @@ timeout /t 10 /nobreak >nul
 set /a WAITED+=10
 
 :: Verificar si completo un ciclo
-findstr /i /c:"waiting for 15 minutes" "%BOT_LOG%" >nul 2>&1
+findstr /i /c:"waiting for 15 minutes" %BOT_LOG% >nul 2>&1
 if %errorlevel%==0 (
     echo       Bot Principal completo un ciclo exitosamente.
     goto CYCLE_DONE
 )
 
 :: Verificar si se deslogueo (error fatal)
-findstr /i /c:"please login and press enter" "%BOT_LOG%" >nul 2>&1
+findstr /i /c:"please login and press enter" %BOT_LOG% >nul 2>&1
 if %errorlevel%==0 (
     echo       Bot Principal perdio la sesion - cerrando.
     goto CYCLE_DONE
