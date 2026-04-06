@@ -18,8 +18,9 @@ const CONFIG = {
   // URL del spreadsheet de historial (fuente de datos)
   HISTORIAL_URL: "https://docs.google.com/spreadsheets/d/15pGe3iaZNR1o9XjJaQKDFj6Gjb3Ul7boBevK9pHyuJ4",
 
-  // Nombre exacto de la hoja plantilla
-  PLANTILLA_NOMBRE: "CUADRE plantilla",
+  // GID de la pestaña plantilla (de la URL: gid=1719577734)
+  // Así no importa cómo se llame la pestaña, siempre la encuentra
+  PLANTILLA_GID: 1719577734,
 
   // Prefijo de las hojas generadas
   PREFIJO_HOJA: "Cuadre - ",
@@ -118,12 +119,16 @@ function generarCuadre(mes, anio) {
     return;
   }
 
-  // ── 1. Validar plantilla
-  const plantilla = ss.getSheetByName(CONFIG.PLANTILLA_NOMBRE);
+  // ── 1. Buscar pestaña plantilla por GID (no por nombre)
+  const plantilla = obtenerHojaPorGid(ss, CONFIG.PLANTILLA_GID);
   if (!plantilla) {
+    // Listar pestañas disponibles para ayudar al usuario
+    const pestanas = ss.getSheets().map(h => `"${h.getName()}" (gid: ${h.getSheetId()})`).join("\n");
     ui.alert(
       "❌ Plantilla no encontrada",
-      `No se encontró la hoja "${CONFIG.PLANTILLA_NOMBRE}" en el spreadsheet.\n\nID del spreadsheet: ${CONFIG.CUADRE_SS_ID}\n\nAsegúrate de que la hoja plantilla tenga exactamente ese nombre.`,
+      `No se encontró la pestaña con GID ${CONFIG.PLANTILLA_GID}.\n\n` +
+      `Pestañas disponibles:\n${pestanas}\n\n` +
+      `Actualiza PLANTILLA_GID en el script con el GID correcto (está en la URL después de "gid=").`,
       ui.ButtonSet.OK
     );
     return;
@@ -441,12 +446,11 @@ function obtenerFechaVenezuela() {
   return new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));
 }
 
-/** Retorna la hoja plantilla por nombre exacto desde el spreadsheet de Cuadre */
-function obtenerHojaPlantilla(ss) {
-  // Mantenida por compatibilidad; generarCuadre() ya usa ss.getSheetByName directamente.
-  {
-    const hoja = ss.getSheetByName(CONFIG.PLANTILLA_NOMBRE);
-    if (hoja) return hoja;
+/** Busca una pestaña dentro de un spreadsheet por su GID (Sheet ID) */
+function obtenerHojaPorGid(ss, gid) {
+  const hojas = ss.getSheets();
+  for (const hoja of hojas) {
+    if (hoja.getSheetId() === gid) return hoja;
   }
   return null;
 }
@@ -490,13 +494,16 @@ function diagnosticarPestanas() {
     return;
   }
 
-  const hojas = ss.getSheets().map((h, i) => `${i + 1}. "${h.getName()}"`).join("\n");
+  const hojas = ss.getSheets().map((h, i) => `${i + 1}. "${h.getName()}" → gid: ${h.getSheetId()}`).join("\n");
+
+  const plantillaEncontrada = obtenerHojaPorGid(ss, CONFIG.PLANTILLA_GID);
 
   ui.alert(
     "🔍 Pestañas en el Spreadsheet",
     `Spreadsheet: ${ss.getName()}\nID: ${CONFIG.CUADRE_SS_ID}\n\nPestañas encontradas:\n\n${hojas}\n\n` +
-    `─────────────────────\nPlantilla buscada: "${CONFIG.PLANTILLA_NOMBRE}"\n\n` +
-    `Si no aparece exactamente igual (mayúsculas, espacios, tildes), copia el nombre exacto de arriba y actualiza CONFIG.PLANTILLA_NOMBRE en el script.`,
+    `─────────────────────\n` +
+    `Plantilla buscada (GID): ${CONFIG.PLANTILLA_GID}\n` +
+    `Estado: ${plantillaEncontrada ? "✅ ENCONTRADA → \"" + plantillaEncontrada.getName() + "\"" : "❌ NO ENCONTRADA"}`,
     ui.ButtonSet.OK
   );
 }
