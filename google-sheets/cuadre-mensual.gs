@@ -2,8 +2,13 @@
  * CUADRE MENSUAL AUTOMÁTICO - Google Apps Script
  * Repositorio: bythegiox/botsitojacobo
  *
- * Genera pestañas mensuales de cuadre copiando la plantilla,
- * actualizando fórmulas QUERY y fechas dd-mm en tablas.
+ * FLUJO:
+ * 1. Duplica el archivo COMPLETO "CUADRE plantilla" (todas las pestañas, formato, datos)
+ * 2. Renombra la copia a "Cuadre - {Mes} {Año}"
+ * 3. Adapta las fórmulas QUERY con las fechas del nuevo mes
+ * 4. Actualiza las fechas dd-mm en las tablas
+ * 5. Crea/actualiza la hoja CONFIG con fecha inicio y fin
+ *
  * Zona horaria: America/Caracas (Venezuela)
  */
 
@@ -11,21 +16,17 @@
 // CONFIGURACIÓN GLOBAL
 // ─────────────────────────────────────────────
 const CONFIG = {
-  // ID del spreadsheet de Cuadre (el que tiene la plantilla y las hojas mensuales)
-  // Extraído de: https://docs.google.com/spreadsheets/d/12bkHCsanz9PPdQac5wFqwTXpti-o-0Ok4c4sbycRQJk/
-  CUADRE_SS_ID: "12bkHCsanz9PPdQac5wFqwTXpti-o-0Ok4c4sbycRQJk",
+  // ID del archivo plantilla (CUADRE plantilla)
+  // https://docs.google.com/spreadsheets/d/12bkHCsanz9PPdQac5wFqwTXpti-o-0Ok4c4sbycRQJk/
+  PLANTILLA_SS_ID: "12bkHCsanz9PPdQac5wFqwTXpti-o-0Ok4c4sbycRQJk",
 
-  // URL del spreadsheet de historial (fuente de datos)
+  // URL del spreadsheet de historial (fuente de datos para IMPORTRANGE)
   HISTORIAL_URL: "https://docs.google.com/spreadsheets/d/15pGe3iaZNR1o9XjJaQKDFj6Gjb3Ul7boBevK9pHyuJ4",
 
-  // GID de la pestaña plantilla (de la URL: gid=1719577734)
-  // Así no importa cómo se llame la pestaña, siempre la encuentra
-  PLANTILLA_GID: 1719577734,
+  // Carpeta de Google Drive donde guardar las copias (null = misma carpeta que la plantilla)
+  CARPETA_DESTINO_ID: null,
 
-  // Prefijo de las hojas generadas
-  PREFIJO_HOJA: "Cuadre - ",
-
-  // Nombre de la hoja CONFIG
+  // Nombre de la hoja CONFIG dentro de la copia
   CONFIG_HOJA: "CONFIG",
 
   // Meses en español
@@ -39,36 +40,33 @@ const CONFIG = {
 };
 
 // ─────────────────────────────────────────────
-// MENÚ PRINCIPAL
+// MENÚ PRINCIPAL (se ejecuta desde la plantilla)
 // ─────────────────────────────────────────────
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("⚙️ Cuadre Mensual")
-    .addItem("📋 Generar Cuadre Actual", "generarCuadreActual")
+    .addItem("📋 Generar Cuadre del Mes Actual", "generarCuadreActual")
     .addItem("📅 Generar Cuadre de Mes Específico", "generarCuadreMesEspecifico")
     .addSeparator()
     .addItem("🔁 Configurar Ejecución Automática (fin de mes)", "configurarTriggerAutomatico")
     .addItem("🗑️ Eliminar Trigger Automático", "eliminarTriggers")
     .addSeparator()
     .addItem("ℹ️ Ver Estado de Triggers", "verEstadoTriggers")
-    .addItem("🔍 Diagnóstico: Ver pestañas del Spreadsheet", "diagnosticarPestanas")
     .addToUi();
 }
 
 // ─────────────────────────────────────────────
-// FUNCIÓN PRINCIPAL - GENERAR CUADRE ACTUAL
+// GENERAR CUADRE DEL MES ACTUAL
 // ─────────────────────────────────────────────
 function generarCuadreActual() {
   const ahora = obtenerFechaVenezuela();
-  const mes = ahora.getMonth() + 1;   // 1-12
+  const mes  = ahora.getMonth() + 1; // 1-12
   const anio = ahora.getFullYear();
-
-  Logger.log(`Generando cuadre para: ${CONFIG.MESES[mes - 1]} ${anio}`);
   generarCuadre(mes, anio);
 }
 
 // ─────────────────────────────────────────────
-// GENERAR CUADRE PARA MES ESPECÍFICO (con UI)
+// GENERAR CUADRE DE MES ESPECÍFICO (con diálogo)
 // ─────────────────────────────────────────────
 function generarCuadreMesEspecifico() {
   const ui = SpreadsheetApp.getUi();
@@ -101,128 +99,124 @@ function generarCuadreMesEspecifico() {
 }
 
 // ─────────────────────────────────────────────
-// NÚCLEO: GENERA EL CUADRE
+// NÚCLEO: DUPLICA EL ARCHIVO Y ADAPTA FECHAS
 // ─────────────────────────────────────────────
 function generarCuadre(mes, anio) {
   const ui = SpreadsheetApp.getUi();
+  const nombreMes = CONFIG.MESES[mes - 1];
+  const nombreArchivo = `Cuadre - ${nombreMes} ${anio}`;
 
-  // ── 0. Abrir el spreadsheet de Cuadre por ID (funciona sin importar desde dónde se ejecute el script)
-  let ss;
+  // ── 1. Verificar que la plantilla existe
+  let archivoPlantilla;
   try {
-    ss = SpreadsheetApp.openById(CONFIG.CUADRE_SS_ID);
+    archivoPlantilla = DriveApp.getFileById(CONFIG.PLANTILLA_SS_ID);
   } catch (e) {
     ui.alert(
-      "❌ Error al abrir el Spreadsheet",
-      `No se pudo abrir el spreadsheet con ID:\n${CONFIG.CUADRE_SS_ID}\n\nVerifica que el ID sea correcto y que tengas permisos de edición.\n\nError: ${e.message}`,
-      ui.ButtonSet.OK
-    );
-    return;
-  }
-
-  // ── 1. Buscar pestaña plantilla por GID (no por nombre)
-  const plantilla = obtenerHojaPorGid(ss, CONFIG.PLANTILLA_GID);
-  if (!plantilla) {
-    // Listar pestañas disponibles para ayudar al usuario
-    const pestanas = ss.getSheets().map(h => `"${h.getName()}" (gid: ${h.getSheetId()})`).join("\n");
-    ui.alert(
       "❌ Plantilla no encontrada",
-      `No se encontró la pestaña con GID ${CONFIG.PLANTILLA_GID}.\n\n` +
-      `Pestañas disponibles:\n${pestanas}\n\n` +
-      `Actualiza PLANTILLA_GID en el script con el GID correcto (está en la URL después de "gid=").`,
+      `No se pudo acceder al archivo plantilla.\nID: ${CONFIG.PLANTILLA_SS_ID}\n\nError: ${e.message}`,
       ui.ButtonSet.OK
     );
     return;
   }
 
-  // ── 2. Nombre de la nueva hoja
-  const nombreMes = CONFIG.MESES[mes - 1];
-  const nombreHoja = `${CONFIG.PREFIJO_HOJA}${nombreMes} ${anio}`;
-
-  // ── 3. Verificar duplicado
-  if (ss.getSheetByName(nombreHoja)) {
+  // ── 2. Verificar si ya existe un archivo con ese nombre en la misma carpeta
+  const carpetaDestino = obtenerCarpetaDestino(archivoPlantilla);
+  const archivosExistentes = carpetaDestino.getFilesByName(nombreArchivo);
+  if (archivosExistentes.hasNext()) {
     const resp = ui.alert(
-      "⚠️ Hoja ya existe",
-      `La hoja "${nombreHoja}" ya existe.\n¿Deseas sobreescribirla?`,
+      "⚠️ Archivo ya existe",
+      `Ya existe un archivo llamado "${nombreArchivo}" en la carpeta.\n\n¿Deseas crear uno nuevo de todas formas? (el anterior no se borrará)`,
       ui.ButtonSet.YES_NO
     );
     if (resp !== ui.Button.YES) return;
-    ss.deleteSheet(ss.getSheetByName(nombreHoja));
   }
 
-  // ── 4. Calcular fechas del mes
+  // ── 3. DUPLICAR el archivo completo (todas las pestañas, formato, datos, todo)
+  ui.alert("⏳ Generando...", `Duplicando plantilla y adaptando fechas para ${nombreMes} ${anio}...\n\nEsto puede tomar unos segundos. Presiona Aceptar y espera.`, ui.ButtonSet.OK);
+
+  let archivoCopia;
+  if (CONFIG.CARPETA_DESTINO_ID) {
+    const carpeta = DriveApp.getFolderById(CONFIG.CARPETA_DESTINO_ID);
+    archivoCopia = archivoPlantilla.makeCopy(nombreArchivo, carpeta);
+  } else {
+    archivoCopia = archivoPlantilla.makeCopy(nombreArchivo, carpetaDestino);
+  }
+
+  // ── 4. Abrir la copia como Spreadsheet
+  const ssCopia = SpreadsheetApp.openById(archivoCopia.getId());
+
+  // ── 5. Calcular fechas del mes
   const diasEnMes = obtenerDiasEnMes(mes, anio);
   const fechaInicio = formatearFechaDDMM(1, mes);
   const fechaFin    = formatearFechaDDMM(diasEnMes, mes);
-
-  // Formato YYYY-MM-DD para las QUERY
   const fechaInicioQuery = `${anio}-${padDos(mes)}-01`;
   const fechaFinQuery    = `${anio}-${padDos(mes)}-${padDos(diasEnMes)}`;
 
-  // ── 5. Copiar plantilla
-  const nuevaHoja = plantilla.copyTo(ss);
-  nuevaHoja.setName(nombreHoja);
+  // ── 6. Recorrer TODAS las pestañas de la copia y adaptar
+  const hojas = ssCopia.getSheets();
+  let totalFormulas = 0;
+  let totalFechas   = 0;
 
-  // Mover la nueva hoja al final (antes de CONFIG si existe)
-  const hojaConfig = ss.getSheetByName(CONFIG.CONFIG_HOJA);
-  if (hojaConfig) {
-    ss.moveActiveSheet(ss.getSheets().length - 1);
+  for (const hoja of hojas) {
+    totalFormulas += actualizarFormulas(hoja, fechaInicioQuery, fechaFinQuery);
+    totalFechas   += actualizarFechasTabla(hoja, mes, anio, diasEnMes);
   }
 
-  // ── 6. Actualizar/crear hoja CONFIG
-  actualizarHojaConfig(ss, fechaInicio, fechaFin);
+  // ── 7. Crear/actualizar hoja CONFIG en la copia
+  actualizarHojaConfig(ssCopia, fechaInicio, fechaFin, mes, anio);
 
-  // ── 7. Actualizar fórmulas QUERY en la nueva hoja
-  actualizarFormulas(nuevaHoja, fechaInicioQuery, fechaFinQuery);
-
-  // ── 8. Actualizar fechas dd-mm en tablas
-  actualizarFechasTabla(nuevaHoja, mes, anio, diasEnMes);
-
-  // ── 9. Éxito
-  ss.setActiveSheet(nuevaHoja);
+  // ── 8. Éxito - mostrar resumen con enlace al nuevo archivo
+  const urlCopia = ssCopia.getUrl();
   ui.alert(
     "✅ Cuadre Generado",
-    `Se creó correctamente la hoja:\n"${nombreHoja}"\n\n` +
-    `📅 Período: ${fechaInicio.replace("-", "/")} al ${fechaFin.replace("-", "/")}\n` +
-    `📆 Días en el mes: ${diasEnMes}${esBisiesto(anio) && mes === 2 ? " (año bisiesto)" : ""}`,
+    `Se duplicó la plantilla y se creó:\n"${nombreArchivo}"\n\n` +
+    `📅 Período: ${fechaInicio} al ${fechaFin}\n` +
+    `📆 Días en el mes: ${diasEnMes}${esBisiesto(anio) && mes === 2 ? " (año bisiesto)" : ""}\n` +
+    `📊 Fórmulas adaptadas: ${totalFormulas}\n` +
+    `📝 Fechas dd-mm actualizadas: ${totalFechas}\n\n` +
+    `🔗 Abrir archivo:\n${urlCopia}`,
     ui.ButtonSet.OK
   );
 
-  Logger.log(`✅ Cuadre generado: ${nombreHoja} | ${fechaInicioQuery} → ${fechaFinQuery}`);
+  Logger.log(`✅ Cuadre generado: ${nombreArchivo} | ${fechaInicioQuery} → ${fechaFinQuery} | URL: ${urlCopia}`);
 }
 
 // ─────────────────────────────────────────────
-// ACTUALIZAR HOJA CONFIG
+// ACTUALIZAR HOJA CONFIG EN LA COPIA
 // ─────────────────────────────────────────────
-function actualizarHojaConfig(ss, fechaInicio, fechaFin) {
+function actualizarHojaConfig(ss, fechaInicio, fechaFin, mes, anio) {
   let hojaConfig = ss.getSheetByName(CONFIG.CONFIG_HOJA);
 
   if (!hojaConfig) {
     hojaConfig = ss.insertSheet(CONFIG.CONFIG_HOJA);
-    // Encabezados básicos
-    hojaConfig.getRange("A1").setValue("Fecha Inicio (dd-mm)");
-    hojaConfig.getRange("A2").setValue("Fecha Fin (dd-mm)");
-    hojaConfig.getRange("A3").setValue("Última Actualización");
-    hojaConfig.getRange("A1:A3").setFontWeight("bold");
   }
 
+  // Encabezados
+  hojaConfig.getRange("A1").setValue("Fecha Inicio (dd-mm)");
+  hojaConfig.getRange("A2").setValue("Fecha Fin (dd-mm)");
+  hojaConfig.getRange("A3").setValue("Mes");
+  hojaConfig.getRange("A4").setValue("Año");
+  hojaConfig.getRange("A5").setValue("Generado el");
+  hojaConfig.getRange("A1:A5").setFontWeight("bold");
+
+  // Valores
   hojaConfig.getRange("B1").setValue(fechaInicio);
   hojaConfig.getRange("B2").setValue(fechaFin);
-  hojaConfig.getRange("B3").setValue(new Date());
-
-  Logger.log(`CONFIG actualizado: B1=${fechaInicio}, B2=${fechaFin}`);
+  hojaConfig.getRange("B3").setValue(CONFIG.MESES[mes - 1]);
+  hojaConfig.getRange("B4").setValue(anio);
+  hojaConfig.getRange("B5").setValue(new Date());
 }
 
 // ─────────────────────────────────────────────
-// ACTUALIZAR FÓRMULAS QUERY
+// ACTUALIZAR FÓRMULAS QUERY EN UNA HOJA
 // ─────────────────────────────────────────────
 function actualizarFormulas(hoja, fechaInicioQuery, fechaFinQuery) {
   const totalFilas = hoja.getLastRow();
   const totalCols  = hoja.getLastColumn();
-  if (totalFilas === 0 || totalCols === 0) return;
+  if (totalFilas === 0 || totalCols === 0) return 0;
 
-  const rango = hoja.getRange(1, 1, totalFilas, totalCols);
+  const rango    = hoja.getRange(1, 1, totalFilas, totalCols);
   const formulas = rango.getFormulas();
-
   let cambios = 0;
 
   for (let f = 0; f < formulas.length; f++) {
@@ -234,39 +228,33 @@ function actualizarFormulas(hoja, fechaInicioQuery, fechaFinQuery) {
       if (nuevaFormula !== formula) {
         hoja.getRange(f + 1, c + 1).setFormula(nuevaFormula);
         cambios++;
-        Logger.log(`Fórmula actualizada en (${f + 1},${c + 1})`);
       }
     }
   }
 
-  Logger.log(`Total fórmulas actualizadas: ${cambios}`);
+  return cambios;
 }
 
 /**
- * Adapta una fórmula reemplazando fechas date 'YYYY-MM-DD' y month(date ...) / year(date ...)
+ * Adapta una fórmula reemplazando fechas date 'YYYY-MM-DD'
+ * y month(date ...) / year(date ...)
  */
 function adaptarFormula(formula, fechaInicioQuery, fechaFinQuery) {
   let nueva = formula;
 
-  // ── A) Reemplazar patrones date 'YYYY-MM-DD' dentro de QUERY strings
-  // Captura cualquier date 'AAAA-MM-DD' y determina si es inicio (día 01) o fin
+  // A) Reemplazar date 'YYYY-MM-DD' → día 01 = inicio, otro día = fin
   nueva = nueva.replace(/date\s*'(\d{4}-\d{2}-\d{2})'/gi, function(match, fecha) {
-    const partes = fecha.split("-");
-    const dia = parseInt(partes[2]);
-    if (dia === 1) {
-      return `date '${fechaInicioQuery}'`;
-    } else {
-      return `date '${fechaFinQuery}'`;
-    }
+    const dia = parseInt(fecha.split("-")[2]);
+    return dia === 1 ? `date '${fechaInicioQuery}'` : `date '${fechaFinQuery}'`;
   });
 
-  // ── B) Reemplazar month(date 'YYYY-MM-DD') → mes correcto
+  // B) month(date 'YYYY-MM-DD') → mes correcto
   nueva = nueva.replace(
     /month\s*\(\s*date\s*'(\d{4}-\d{2}-\d{2})'\s*\)/gi,
     `month(date '${fechaFinQuery}')`
   );
 
-  // ── C) Reemplazar year(date 'YYYY-MM-DD') → año correcto
+  // C) year(date 'YYYY-MM-DD') → año correcto
   nueva = nueva.replace(
     /year\s*\(\s*date\s*'(\d{4}-\d{2}-\d{2})'\s*\)/gi,
     `year(date '${fechaFinQuery}')`
@@ -278,56 +266,42 @@ function adaptarFormula(formula, fechaInicioQuery, fechaFinQuery) {
 // ─────────────────────────────────────────────
 // ACTUALIZAR FECHAS dd-mm EN TABLAS
 // ─────────────────────────────────────────────
-/**
- * Busca celdas con valores en formato "DD-MM" (01-03, 15-03, etc.)
- * y las reemplaza por el nuevo mes (01-04, 15-04, etc.)
- * También elimina filas de días que no existen en el nuevo mes.
- */
 function actualizarFechasTabla(hoja, mes, anio, diasEnMes) {
   const totalFilas = hoja.getLastRow();
   const totalCols  = hoja.getLastColumn();
-  if (totalFilas === 0 || totalCols === 0) return;
+  if (totalFilas === 0 || totalCols === 0) return 0;
 
-  const rango  = hoja.getRange(1, 1, totalFilas, totalCols);
-  const valores = rango.getValues();
+  const rango    = hoja.getRange(1, 1, totalFilas, totalCols);
+  const valores  = rango.getValues();
   const formulas = rango.getFormulas();
-
-  const regexFechaDDMM = /^(\d{2})-(\d{2})$/;
-  let cambiosFechas = 0;
+  const regexFechaDDMM = /^(\d{1,2})-(\d{1,2})$/;
+  let cambios = 0;
 
   for (let f = 0; f < valores.length; f++) {
     for (let c = 0; c < valores[f].length; c++) {
-      // Saltar celdas con fórmula (ya fueron procesadas)
-      if (formulas[f][c]) continue;
+      if (formulas[f][c]) continue; // Saltar celdas con fórmula
 
-      const valor = valores[f][c];
-      if (typeof valor !== "string" && typeof valor !== "number") continue;
-
-      const strVal = String(valor).trim();
+      const strVal = String(valores[f][c]).trim();
       const match  = strVal.match(regexFechaDDMM);
       if (!match) continue;
 
-      const dia    = parseInt(match[1]);
+      const dia     = parseInt(match[1]);
       const mesOrig = parseInt(match[2]);
 
-      // Solo procesar si parece una fecha de día válido (1-31) y mes anterior
       if (dia < 1 || dia > 31) continue;
-      if (mesOrig === mes) continue; // Ya está en el mes correcto
+      if (mesOrig === mes) continue; // Ya tiene el mes correcto
 
       if (dia > diasEnMes) {
         // Día no existe en el nuevo mes → limpiar celda
         hoja.getRange(f + 1, c + 1).setValue("");
-        cambiosFechas++;
       } else {
-        // Reemplazar con nueva fecha
-        const nuevaFecha = `${padDos(dia)}-${padDos(mes)}`;
-        hoja.getRange(f + 1, c + 1).setValue(nuevaFecha);
-        cambiosFechas++;
+        hoja.getRange(f + 1, c + 1).setValue(`${padDos(dia)}-${padDos(mes)}`);
       }
+      cambios++;
     }
   }
 
-  Logger.log(`Fechas dd-mm actualizadas: ${cambiosFechas}`);
+  return cambios;
 }
 
 // ─────────────────────────────────────────────
@@ -336,79 +310,85 @@ function actualizarFechasTabla(hoja, mes, anio, diasEnMes) {
 function configurarTriggerAutomatico() {
   const ui = SpreadsheetApp.getUi();
 
-  // Eliminar triggers existentes de esta función para evitar duplicados
   eliminarTriggersPorFuncion("ejecutarCuadreAutomatico");
 
-  // Crear trigger mensual: se ejecuta el último día del mes a las 23:00 VE
-  // Apps Script no tiene trigger "último día del mes", usamos día 28 como
-  // mínimo común y verificamos en la función si es el último día.
-  ScriptApp.newTrigger("ejecutarCuadreAutomatico")
-    .timeBased()
-    .onMonthDay(28)
-    .atHour(23)
-    .inTimezone(CONFIG.TIMEZONE)
-    .create();
-
-  // También crear uno para días 29, 30, 31 para cubrir todos los meses
-  ScriptApp.newTrigger("ejecutarCuadreAutomatico")
-    .timeBased()
-    .onMonthDay(29)
-    .atHour(23)
-    .inTimezone(CONFIG.TIMEZONE)
-    .create();
-
-  ScriptApp.newTrigger("ejecutarCuadreAutomatico")
-    .timeBased()
-    .onMonthDay(30)
-    .atHour(23)
-    .inTimezone(CONFIG.TIMEZONE)
-    .create();
-
-  ScriptApp.newTrigger("ejecutarCuadreAutomatico")
-    .timeBased()
-    .onMonthDay(31)
-    .atHour(23)
-    .inTimezone(CONFIG.TIMEZONE)
-    .create();
+  // Ejecutar días 28-31 a las 23:00 VE; solo actúa si es el último día del mes
+  [28, 29, 30, 31].forEach(dia => {
+    ScriptApp.newTrigger("ejecutarCuadreAutomatico")
+      .timeBased()
+      .onMonthDay(dia)
+      .atHour(23)
+      .inTimezone(CONFIG.TIMEZONE)
+      .create();
+  });
 
   ui.alert(
     "✅ Trigger Configurado",
-    "Se configurará la ejecución automática al final de cada mes (días 28-31 a las 23:00 hora Venezuela).\n\n" +
-    "El script detectará automáticamente el último día del mes y solo ejecutará una vez por mes.",
+    "Ejecución automática configurada para el último día de cada mes a las 23:00 (hora Venezuela).\n\n" +
+    "El script detectará el último día real del mes automáticamente.",
     ui.ButtonSet.OK
   );
 }
 
-/**
- * Función ejecutada por el trigger automático.
- * Solo genera el cuadre si hoy es el último día del mes.
- */
 function ejecutarCuadreAutomatico() {
-  const ahora = obtenerFechaVenezuela();
-  const mes   = ahora.getMonth() + 1;
-  const anio  = ahora.getFullYear();
-  const dia   = ahora.getDate();
+  const ahora     = obtenerFechaVenezuela();
+  const mes       = ahora.getMonth() + 1;
+  const anio      = ahora.getFullYear();
+  const dia       = ahora.getDate();
   const diasEnMes = obtenerDiasEnMes(mes, anio);
 
+  // Solo ejecutar si hoy es el último día del mes
   if (dia === diasEnMes) {
-    Logger.log(`Trigger automático: ejecutando cuadre para ${CONFIG.MESES[mes - 1]} ${anio}`);
-    generarCuadre(mes, anio);
-  } else {
-    Logger.log(`Trigger automático: hoy es día ${dia}, el mes tiene ${diasEnMes} días. No es el último día, omitiendo.`);
+    // Generar cuadre del MES SIGUIENTE
+    let mesSiguiente = mes + 1;
+    let anioSiguiente = anio;
+    if (mesSiguiente > 12) {
+      mesSiguiente = 1;
+      anioSiguiente++;
+    }
+    generarCuadreSilencioso(mesSiguiente, anioSiguiente);
   }
+}
+
+/**
+ * Versión sin UI para ejecución automática por trigger
+ */
+function generarCuadreSilencioso(mes, anio) {
+  const nombreMes     = CONFIG.MESES[mes - 1];
+  const nombreArchivo = `Cuadre - ${nombreMes} ${anio}`;
+
+  const archivoPlantilla = DriveApp.getFileById(CONFIG.PLANTILLA_SS_ID);
+  const carpetaDestino   = obtenerCarpetaDestino(archivoPlantilla);
+  const archivoCopia     = archivoPlantilla.makeCopy(nombreArchivo, carpetaDestino);
+  const ssCopia          = SpreadsheetApp.openById(archivoCopia.getId());
+
+  const diasEnMes        = obtenerDiasEnMes(mes, anio);
+  const fechaInicio      = formatearFechaDDMM(1, mes);
+  const fechaFin         = formatearFechaDDMM(diasEnMes, mes);
+  const fechaInicioQuery = `${anio}-${padDos(mes)}-01`;
+  const fechaFinQuery    = `${anio}-${padDos(mes)}-${padDos(diasEnMes)}`;
+
+  for (const hoja of ssCopia.getSheets()) {
+    actualizarFormulas(hoja, fechaInicioQuery, fechaFinQuery);
+    actualizarFechasTabla(hoja, mes, anio, diasEnMes);
+  }
+
+  actualizarHojaConfig(ssCopia, fechaInicio, fechaFin, mes, anio);
+
+  Logger.log(`✅ Cuadre automático: ${nombreArchivo} | URL: ${ssCopia.getUrl()}`);
 }
 
 function eliminarTriggers() {
   const ui = SpreadsheetApp.getUi();
   const resp = ui.alert(
     "🗑️ Eliminar Triggers",
-    "¿Estás seguro de que deseas eliminar todos los triggers automáticos de cuadre mensual?",
+    "¿Eliminar todos los triggers automáticos?",
     ui.ButtonSet.YES_NO
   );
   if (resp !== ui.Button.YES) return;
 
   eliminarTriggersPorFuncion("ejecutarCuadreAutomatico");
-  ui.alert("✅ Todos los triggers automáticos han sido eliminados.");
+  ui.alert("✅ Triggers eliminados.");
 }
 
 function eliminarTriggersPorFuncion(nombreFuncion) {
@@ -425,12 +405,12 @@ function verEstadoTriggers() {
     .filter(t => t.getHandlerFunction() === "ejecutarCuadreAutomatico");
 
   if (triggers.length === 0) {
-    ui.alert("ℹ️ Estado de Triggers", "No hay triggers automáticos configurados.", ui.ButtonSet.OK);
+    ui.alert("ℹ️ No hay triggers automáticos configurados.");
   } else {
     const info = triggers.map(t =>
-      `• Función: ${t.getHandlerFunction()} | Tipo: ${t.getEventType()}`
+      `• ${t.getHandlerFunction()} | ${t.getEventType()}`
     ).join("\n");
-    ui.alert("ℹ️ Triggers Activos", `Se encontraron ${triggers.length} trigger(s):\n\n${info}`, ui.ButtonSet.OK);
+    ui.alert("ℹ️ Triggers Activos", `${triggers.length} trigger(s):\n\n${info}`, ui.ButtonSet.OK);
   }
 }
 
@@ -438,72 +418,34 @@ function verEstadoTriggers() {
 // UTILIDADES
 // ─────────────────────────────────────────────
 
-/** Obtiene la fecha actual en la zona horaria de Venezuela */
 function obtenerFechaVenezuela() {
-  const ahora = new Date();
+  const ahora    = new Date();
   const strFecha = Utilities.formatDate(ahora, CONFIG.TIMEZONE, "yyyy-MM-dd");
-  const partes = strFecha.split("-");
+  const partes   = strFecha.split("-");
   return new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));
 }
 
-/** Busca una pestaña dentro de un spreadsheet por su GID (Sheet ID) */
-function obtenerHojaPorGid(ss, gid) {
-  const hojas = ss.getSheets();
-  for (const hoja of hojas) {
-    if (hoja.getSheetId() === gid) return hoja;
+/** Obtiene la carpeta donde está la plantilla (o la configurada) */
+function obtenerCarpetaDestino(archivoPlantilla) {
+  if (CONFIG.CARPETA_DESTINO_ID) {
+    return DriveApp.getFolderById(CONFIG.CARPETA_DESTINO_ID);
   }
-  return null;
+  const carpetas = archivoPlantilla.getParents();
+  return carpetas.hasNext() ? carpetas.next() : DriveApp.getRootFolder();
 }
 
-/** Calcula cuántos días tiene un mes (con soporte de año bisiesto) */
 function obtenerDiasEnMes(mes, anio) {
-  // new Date(anio, mes, 0) = último día del mes (mes es 1-indexado, pero Date usa 0-indexado)
   return new Date(anio, mes, 0).getDate();
 }
 
-/** Verifica si un año es bisiesto */
 function esBisiesto(anio) {
   return (anio % 4 === 0 && anio % 100 !== 0) || (anio % 400 === 0);
 }
 
-/** Formatea fecha como "DD-MM" */
 function formatearFechaDDMM(dia, mes) {
   return `${padDos(dia)}-${padDos(mes)}`;
 }
 
-/** Pad de 2 dígitos */
 function padDos(n) {
   return String(n).padStart(2, "0");
-}
-
-// ─────────────────────────────────────────────
-// DIAGNÓSTICO
-// ─────────────────────────────────────────────
-/**
- * Lista todas las pestañas del spreadsheet de Cuadre.
- * Úsalo para verificar el nombre exacto de la plantilla.
- */
-function diagnosticarPestanas() {
-  const ui = SpreadsheetApp.getUi();
-
-  let ss;
-  try {
-    ss = SpreadsheetApp.openById(CONFIG.CUADRE_SS_ID);
-  } catch (e) {
-    ui.alert("❌ No se pudo abrir el spreadsheet.\nID: " + CONFIG.CUADRE_SS_ID + "\nError: " + e.message);
-    return;
-  }
-
-  const hojas = ss.getSheets().map((h, i) => `${i + 1}. "${h.getName()}" → gid: ${h.getSheetId()}`).join("\n");
-
-  const plantillaEncontrada = obtenerHojaPorGid(ss, CONFIG.PLANTILLA_GID);
-
-  ui.alert(
-    "🔍 Pestañas en el Spreadsheet",
-    `Spreadsheet: ${ss.getName()}\nID: ${CONFIG.CUADRE_SS_ID}\n\nPestañas encontradas:\n\n${hojas}\n\n` +
-    `─────────────────────\n` +
-    `Plantilla buscada (GID): ${CONFIG.PLANTILLA_GID}\n` +
-    `Estado: ${plantillaEncontrada ? "✅ ENCONTRADA → \"" + plantillaEncontrada.getName() + "\"" : "❌ NO ENCONTRADA"}`,
-    ui.ButtonSet.OK
-  );
 }
