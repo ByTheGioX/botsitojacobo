@@ -55,6 +55,8 @@ last_group_message_fp = os.path.join(sys.path[0], 'data', 'last_group_message.tx
 downloaded_photos_dir = os.path.join(sys.path[0], 'data', 'downloaded_photos')
 photo_sent_messages_fp = os.path.join(sys.path[0], 'data', 'photo_sent_messages.txt')
 log_fp = os.path.join(sys.path[0], 'data', 'logs.txt')
+log_dir = os.path.join(sys.path[0], 'data', 'log')
+photo_history_fp = os.path.join(sys.path[0], 'data', 'photo_history.json')
 
 photo_thank_you_template_fp = os.path.join(sys.path[0], 'data', 'photo_thank_you_template.txt')
 positive_review_template_fp = os.path.join(sys.path[0], 'data', 'positive_review_template.txt')
@@ -101,6 +103,32 @@ def _save_json_set(filepath, data_set):
     items = list(data_set)[-500:]
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(items, f)
+
+
+def write_execution_log(result, details):
+    """Write a log entry to data/log/YYYY-MM-DD.log"""
+    os.makedirs(log_dir, exist_ok=True)
+    now = datetime.datetime.now()
+    log_file = os.path.join(log_dir, now.strftime('%Y-%m-%d') + '.log')
+    line = f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] {result} | {details}\n"
+    with open(log_file, 'a', encoding='utf-8') as f:
+        f.write(line)
+
+
+def save_photo_history(entry):
+    """Append a photo send record to photo_history.json for traceability."""
+    history = []
+    if os.path.exists(photo_history_fp):
+        try:
+            with open(photo_history_fp, 'r', encoding='utf-8') as f:
+                history = json.load(f)
+        except:
+            history = []
+    history.append(entry)
+    # Keep last 1000 entries
+    history = history[-1000:]
+    with open(photo_history_fp, 'w', encoding='utf-8') as f:
+        json.dump(history, f, indent=2, ensure_ascii=False)
 
 
 # ============================================================
@@ -1544,9 +1572,28 @@ $img.Dispose()
                         'booking_time': matched_booking.get('booking_time', ''),
                         'booking_place': matched_booking.get('booking_place', ''),
                     })
+
+                    save_photo_history({
+                        'fecha_envio': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'dia_reserva': date_str,
+                        'hora_reserva': t,
+                        'sala': sala_label,
+                        'telefono_cliente': matched_booking['wa_link'],
+                        'foto': os.path.basename(photo_path),
+                        'resultado': 'ENVIADO',
+                    })
                 else:
                     print(f'  -> [WARN] Photo send FAILED after all attempts. Will retry next cycle.')
                     entry_all_sends_ok = False
+                    save_photo_history({
+                        'fecha_envio': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'dia_reserva': date_str,
+                        'hora_reserva': t,
+                        'sala': sala_label,
+                        'telefono_cliente': matched_booking['wa_link'],
+                        'foto': os.path.basename(photo_path),
+                        'resultado': 'FALLIDO',
+                    })
 
             # After processing all times for this entry: buffer msg_id for later deletion
             if entry_all_sends_ok and sent_wa_links_this_photo:
@@ -2337,11 +2384,15 @@ time.sleep(30)
 
 print("\n--- Running all photo modules ---\n")
 
+_cycle_errors = []
+_cycle_stats = {'fotos_nuevas': 0, 'envios_ok': 0, 'envios_fail': 0, 'reviews_neg': 0, 'fotos_borradas': 0}
+
 # Module 4: Cleanup first
 daily_cleanup()
 
 # Module 1: Scrape photo group
 photo_entries = scrape_photo_group()
+_cycle_stats['fotos_nuevas'] = len(photo_entries) if photo_entries else 0
 
 # Module 2: Match and send (returns buffer of msg_ids to delete later)
 photos_to_delete = []
@@ -2356,6 +2407,7 @@ if photo_entries:
 
 # Module 3: Check pending replies
 negative_reviews = check_pending_replies() or []
+_cycle_stats['reviews_neg'] = len(negative_reviews) if negative_reviews else 0
 
 # Module 5: Dequeue review emails for negative reviews
 if negative_reviews:
@@ -2364,10 +2416,35 @@ else:
     print("\nNo negative reviews — skipping Module 5.")
 
 # Module 6: Delete sent photos from group (only after all modules are done)
+deleted_count = 0
 if photos_to_delete:
-    delete_sent_photos_from_group(photos_to_delete)
+    deleted_count = delete_sent_photos_from_group(photos_to_delete) or 0
 else:
     print("\nNo photos to delete from group — skipping Module 6.")
+_cycle_stats['fotos_borradas'] = deleted_count
+
+# Count sends from photo_history
+try:
+    if os.path.exists(photo_history_fp):
+        with open(photo_history_fp, 'r', encoding='utf-8') as _hf:
+            _history = json.load(_hf)
+        _today = datetime.datetime.now().strftime('%Y-%m-%d')
+        _today_entries = [h for h in _history if h.get('fecha_envio', '').startswith(_today)]
+        _cycle_stats['envios_ok'] = sum(1 for h in _today_entries if h['resultado'] == 'ENVIADO')
+        _cycle_stats['envios_fail'] = sum(1 for h in _today_entries if h['resultado'] == 'FALLIDO')
+except:
+    pass
+
+# Write execution log
+_log_details = (
+    f"Fotos nuevas: {_cycle_stats['fotos_nuevas']} | "
+    f"Envios OK: {_cycle_stats['envios_ok']} | "
+    f"Envios FAIL: {_cycle_stats['envios_fail']} | "
+    f"Reviews negativas: {_cycle_stats['reviews_neg']} | "
+    f"Fotos borradas: {_cycle_stats['fotos_borradas']}"
+)
+_result = "NEGATIVO" if _cycle_stats['envios_fail'] > 0 else "POSITIVO"
+write_execution_log(_result, _log_details)
 
 print("\n" + "=" * 60)
 print("  ALL DONE!")
