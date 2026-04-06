@@ -271,9 +271,10 @@ function actualizarFechasTabla(hoja, mes, anio, diasEnMes) {
   const totalCols  = hoja.getLastColumn();
   if (totalFilas === 0 || totalCols === 0) return 0;
 
-  const rango    = hoja.getRange(1, 1, totalFilas, totalCols);
-  const valores  = rango.getValues();
-  const formulas = rango.getFormulas();
+  const rango          = hoja.getRange(1, 1, totalFilas, totalCols);
+  const valores        = rango.getValues();
+  const displayValues  = rango.getDisplayValues(); // ← clave: lee lo que se VE en pantalla
+  const formulas       = rango.getFormulas();
   const regexFechaDDMM = /^(\d{1,2})-(\d{1,2})$/;
   let cambios = 0;
 
@@ -281,8 +282,11 @@ function actualizarFechasTabla(hoja, mes, anio, diasEnMes) {
     for (let c = 0; c < valores[f].length; c++) {
       if (formulas[f][c]) continue; // Saltar celdas con fórmula
 
-      const strVal = String(valores[f][c]).trim();
-      const match  = strVal.match(regexFechaDDMM);
+      const valorReal  = valores[f][c];
+      const displayStr = String(displayValues[f][c]).trim();
+
+      // Detectar patrón DD-MM usando el valor VISIBLE (funciona con Date objects y texto)
+      const match = displayStr.match(regexFechaDDMM);
       if (!match) continue;
 
       const dia     = parseInt(match[1]);
@@ -291,11 +295,21 @@ function actualizarFechasTabla(hoja, mes, anio, diasEnMes) {
       if (dia < 1 || dia > 31) continue;
       if (mesOrig === mes) continue; // Ya tiene el mes correcto
 
+      const celda = hoja.getRange(f + 1, c + 1);
+
       if (dia > diasEnMes) {
         // Día no existe en el nuevo mes → limpiar celda
-        hoja.getRange(f + 1, c + 1).setValue("");
+        celda.setValue("");
+      } else if (valorReal instanceof Date) {
+        // ── Caso: el valor es un objeto Date formateado como dd-MM
+        // Crear nueva fecha con el mismo día pero en el nuevo mes
+        const nuevaFecha = new Date(anio, mes - 1, dia);
+        celda.setValue(nuevaFecha);
+        // Mantener el mismo formato de número (dd-MM)
+        celda.setNumberFormat("dd-MM");
       } else {
-        hoja.getRange(f + 1, c + 1).setValue(`${padDos(dia)}-${padDos(mes)}`);
+        // ── Caso: el valor es texto plano "DD-MM"
+        celda.setValue(`${padDos(dia)}-${padDos(mes)}`);
       }
       cambios++;
     }
