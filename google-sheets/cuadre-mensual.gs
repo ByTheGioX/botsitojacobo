@@ -50,6 +50,7 @@ function onOpen() {
     .addItem("🗑️ Eliminar Trigger Automático", "eliminarTriggers")
     .addSeparator()
     .addItem("ℹ️ Ver Estado de Triggers", "verEstadoTriggers")
+    .addItem("🔍 Diagnóstico: Ver pestañas del Spreadsheet", "diagnosticarPestanas")
     .addToUi();
 }
 
@@ -469,4 +470,33 @@ function formatearFechaDDMM(dia, mes) {
 /** Pad de 2 dígitos */
 function padDos(n) {
   return String(n).padStart(2, "0");
+}
+
+// ─────────────────────────────────────────────
+// DIAGNÓSTICO
+// ─────────────────────────────────────────────
+/**
+ * Lista todas las pestañas del spreadsheet de Cuadre.
+ * Úsalo para verificar el nombre exacto de la plantilla.
+ */
+function diagnosticarPestanas() {
+  const ui = SpreadsheetApp.getUi();
+
+  let ss;
+  try {
+    ss = SpreadsheetApp.openById(CONFIG.CUADRE_SS_ID);
+  } catch (e) {
+    ui.alert("❌ No se pudo abrir el spreadsheet.\nID: " + CONFIG.CUADRE_SS_ID + "\nError: " + e.message);
+    return;
+  }
+
+  const hojas = ss.getSheets().map((h, i) => `${i + 1}. "${h.getName()}"`).join("\n");
+
+  ui.alert(
+    "🔍 Pestañas en el Spreadsheet",
+    `Spreadsheet: ${ss.getName()}\nID: ${CONFIG.CUADRE_SS_ID}\n\nPestañas encontradas:\n\n${hojas}\n\n` +
+    `─────────────────────\nPlantilla buscada: "${CONFIG.PLANTILLA_NOMBRE}"\n\n` +
+    `Si no aparece exactamente igual (mayúsculas, espacios, tildes), copia el nombre exacto de arriba y actualiza CONFIG.PLANTILLA_NOMBRE en el script.`,
+    ui.ButtonSet.OK
+  );
 }
