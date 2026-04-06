@@ -2449,8 +2449,5 @@ write_execution_log(_result, _log_details)
 print("\n" + "=" * 60)
 print("  ALL DONE!")
 print("=" * 60)
-if not AUTO_MODE:
-    print("  Press Enter to close browser and exit.")
-    input()
 wb.web_browser.quit()
 sys.exit(0)
