@@ -6,4 +6,4 @@ echo.
 echo Iniciando test de modulos de fotos...
 echo.
 python test_photo_modules.py
-pause
+exit
