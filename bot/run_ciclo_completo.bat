@@ -110,5 +110,9 @@ echo   CICLO COMPLETADO [%date% %time%]
 echo ============================================================
 echo.
 
-exit /b 0
+:: Cerrar la ventana minimizada del BotPrincipal si sigue abierta
+taskkill /fi "WINDOWTITLE eq BotPrincipal" /f 2>nul
+
+:: Forzar cierre de esta ventana cmd.exe (necesario para Task Scheduler)
+exit
 
