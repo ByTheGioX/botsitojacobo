@@ -2453,3 +2453,4 @@ if not AUTO_MODE:
     print("  Press Enter to close browser and exit.")
     input()
 wb.web_browser.quit()
+sys.exit(0)
