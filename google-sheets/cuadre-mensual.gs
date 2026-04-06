@@ -11,11 +11,15 @@
 // CONFIGURACIÓN GLOBAL
 // ─────────────────────────────────────────────
 const CONFIG = {
+  // ID del spreadsheet de Cuadre (el que tiene la plantilla y las hojas mensuales)
+  // Extraído de: https://docs.google.com/spreadsheets/d/12bkHCsanz9PPdQac5wFqwTXpti-o-0Ok4c4sbycRQJk/
+  CUADRE_SS_ID: "12bkHCsanz9PPdQac5wFqwTXpti-o-0Ok4c4sbycRQJk",
+
   // URL del spreadsheet de historial (fuente de datos)
   HISTORIAL_URL: "https://docs.google.com/spreadsheets/d/15pGe3iaZNR1o9XjJaQKDFj6Gjb3Ul7boBevK9pHyuJ4",
 
-  // Nombre(s) posibles de la hoja plantilla (en orden de prioridad)
-  PLANTILLA_NOMBRES: ["CUADRE MARZO", "CUADRE plantilla", "PLANTILLA", "CUADRE TEMPLATE"],
+  // Nombre exacto de la hoja plantilla
+  PLANTILLA_NOMBRE: "CUADRE plantilla",
 
   // Prefijo de las hojas generadas
   PREFIJO_HOJA: "Cuadre - ",
@@ -99,14 +103,26 @@ function generarCuadreMesEspecifico() {
 // ─────────────────────────────────────────────
 function generarCuadre(mes, anio) {
   const ui = SpreadsheetApp.getUi();
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // ── 0. Abrir el spreadsheet de Cuadre por ID (funciona sin importar desde dónde se ejecute el script)
+  let ss;
+  try {
+    ss = SpreadsheetApp.openById(CONFIG.CUADRE_SS_ID);
+  } catch (e) {
+    ui.alert(
+      "❌ Error al abrir el Spreadsheet",
+      `No se pudo abrir el spreadsheet con ID:\n${CONFIG.CUADRE_SS_ID}\n\nVerifica que el ID sea correcto y que tengas permisos de edición.\n\nError: ${e.message}`,
+      ui.ButtonSet.OK
+    );
+    return;
+  }
 
   // ── 1. Validar plantilla
-  const plantilla = obtenerHojaPlantilla(ss);
+  const plantilla = ss.getSheetByName(CONFIG.PLANTILLA_NOMBRE);
   if (!plantilla) {
     ui.alert(
       "❌ Plantilla no encontrada",
-      `No se encontró ninguna hoja con los nombres: ${CONFIG.PLANTILLA_NOMBRES.join(", ")}\n\nAsegúrate de que la hoja plantilla exista con uno de esos nombres.`,
+      `No se encontró la hoja "${CONFIG.PLANTILLA_NOMBRE}" en el spreadsheet.\n\nID del spreadsheet: ${CONFIG.CUADRE_SS_ID}\n\nAsegúrate de que la hoja plantilla tenga exactamente ese nombre.`,
       ui.ButtonSet.OK
     );
     return;
@@ -424,10 +440,11 @@ function obtenerFechaVenezuela() {
   return new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));
 }
 
-/** Retorna la hoja plantilla buscando por nombre en orden de prioridad */
+/** Retorna la hoja plantilla por nombre exacto desde el spreadsheet de Cuadre */
 function obtenerHojaPlantilla(ss) {
-  for (const nombre of CONFIG.PLANTILLA_NOMBRES) {
-    const hoja = ss.getSheetByName(nombre);
+  // Mantenida por compatibilidad; generarCuadre() ya usa ss.getSheetByName directamente.
+  {
+    const hoja = ss.getSheetByName(CONFIG.PLANTILLA_NOMBRE);
     if (hoja) return hoja;
   }
   return null;
