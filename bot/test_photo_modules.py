@@ -990,16 +990,43 @@ def delete_sent_photos_from_group(msg_ids):
 
                 # Scroll to the message so it's visible
                 wb.web_browser.execute_script("arguments[0].scrollIntoView({block: 'center'});", msg_el)
-                time.sleep(1)
+                time.sleep(1.5)
 
-                # === STEP 1: Right-click → opens context menu (Responder, Copiar, Eliminar, etc.) ===
-                ActionChains(wb.web_browser).move_to_element(msg_el).perform()
-                time.sleep(1)
-                ActionChains(wb.web_browser).context_click(msg_el).perform()
+                # === STEP 1: Right-click on the inner bubble (not just the container) ===
+                # Try to find the inner image/bubble element to right-click on
+                click_target = msg_el
+                for inner_sel in [
+                    "img[src^='blob']",
+                    "div[class*='_amjw']",
+                    "div[class*='focusable-list-item']",
+                    "div[class*='message-']",
+                ]:
+                    try:
+                        inner = msg_el.find_element(By.CSS_SELECTOR, inner_sel)
+                        click_target = inner
+                        break
+                    except:
+                        pass
+
+                # Move to element and right-click
+                ActionChains(wb.web_browser).move_to_element(click_target).perform()
+                time.sleep(0.5)
+                ActionChains(wb.web_browser).context_click(click_target).perform()
                 time.sleep(2)
 
                 # === STEP 2: Click "Eliminar" in the context menu ===
                 eliminar_clicked = False
+
+                # Debug: print what menu items appeared
+                try:
+                    all_items = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[role='menuitem'], li[role='menuitem'], [data-testid*='menu'] li, [data-testid*='menu'] div")
+                    if all_items:
+                        texts = [i.get_attribute('innerText').strip() for i in all_items if i.get_attribute('innerText')]
+                        print(f'     DEBUG menu items found: {texts}')
+                    else:
+                        print(f'     DEBUG: no menuitem elements found in DOM')
+                except:
+                    pass
 
                 # Method 1: aria-label selector
                 try:
@@ -1012,10 +1039,10 @@ def delete_sent_photos_from_group(msg_ids):
                 except:
                     pass
 
-                # Method 2: Search all menuitems by text
+                # Method 2: Search all menuitems by text (any role=menuitem)
                 if not eliminar_clicked:
                     try:
-                        menu_items = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[role='menuitem']")
+                        menu_items = wb.web_browser.find_elements(By.CSS_SELECTOR, "[role='menuitem']")
                         for item in menu_items:
                             item_text = (item.get_attribute('innerText') or '').strip().lower()
                             if 'eliminar' in item_text:
@@ -1026,15 +1053,27 @@ def delete_sent_photos_from_group(msg_ids):
                     except:
                         pass
 
-                # Method 3: XPath text
+                # Method 3: XPath text search (broader)
                 if not eliminar_clicked:
                     try:
                         eliminar_item = wb.web_browser.find_element(
-                            By.XPATH, "//div[@role='menuitem'][contains(., 'Eliminar')]"
+                            By.XPATH, "//*[contains(text(),'Eliminar') and not(contains(text(),'para'))]"
                         )
                         eliminar_item.click()
                         eliminar_clicked = True
-                        print(f'     Step 2: Clicked "Eliminar" in context menu (XPath).')
+                        print(f'     Step 2: Clicked "Eliminar" in context menu (XPath text).')
+                    except:
+                        pass
+
+                # Method 4: data-testid for delete
+                if not eliminar_clicked:
+                    try:
+                        eliminar_item = wb.web_browser.find_element(
+                            By.CSS_SELECTOR, "[data-testid='mi-msg-delete'], [data-testid='msg-delete'], [aria-label*='Delete'], [aria-label*='Eliminar']"
+                        )
+                        eliminar_item.click()
+                        eliminar_clicked = True
+                        print(f'     Step 2: Clicked "Eliminar" (data-testid).')
                     except:
                         pass
 
