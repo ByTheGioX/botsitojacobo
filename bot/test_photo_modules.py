@@ -1020,84 +1020,107 @@ def delete_sent_photos_from_group(msg_ids):
                 wb.web_browser.execute_script("arguments[0].scrollIntoView({block: 'center'});", msg_el)
                 time.sleep(1.5)
 
-                # === STEP 1: Right-click on the inner bubble (not just the container) ===
-                # Try to find the inner image/bubble element to right-click on
-                click_target = msg_el
-                for inner_sel in [
-                    "img[src^='blob']",
-                    "div[class*='_amjw']",
-                    "div[class*='focusable-list-item']",
-                    "div[class*='message-']",
+                # === STEP 1: Hover to reveal WhatsApp's dropdown button, then click it ===
+                # context_click triggers the BROWSER menu, not WhatsApp's custom menu.
+                # The correct way is: hover → click the down-arrow button that appears.
+
+                # Trigger hover via JS + ActionChains
+                wb.web_browser.execute_script("""
+                    arguments[0].dispatchEvent(new MouseEvent('mouseover', {bubbles:true}));
+                    arguments[0].dispatchEvent(new MouseEvent('mouseenter', {bubbles:true}));
+                """, msg_el)
+                ActionChains(wb.web_browser).move_to_element(msg_el).perform()
+                time.sleep(1.5)
+
+                # Find and click the hover dropdown button inside the message
+                menu_btn_clicked = False
+                for btn_sel in [
+                    "div[data-testid='msg-options-trigger']",
+                    "span[data-icon='down-context']",
+                    "span[data-icon='triangle-down']",
+                    "[aria-label='Más opciones']",
+                    "[aria-label='More options']",
+                    "div[class*='_amkv']",
+                    "button[class*='message-options']",
                 ]:
                     try:
-                        inner = msg_el.find_element(By.CSS_SELECTOR, inner_sel)
-                        click_target = inner
-                        break
+                        btns = msg_el.find_elements(By.CSS_SELECTOR, btn_sel)
+                        if btns:
+                            wb.web_browser.execute_script("arguments[0].click()", btns[0])
+                            menu_btn_clicked = True
+                            print(f'     Step 1: Clicked hover menu button via {btn_sel}')
+                            break
                     except:
                         pass
 
-                # Move to element and right-click
-                ActionChains(wb.web_browser).move_to_element(click_target).perform()
-                time.sleep(0.5)
-                ActionChains(wb.web_browser).context_click(click_target).perform()
-                time.sleep(2)
+                if not menu_btn_clicked:
+                    # Fallback: try right-click
+                    ActionChains(wb.web_browser).context_click(msg_el).perform()
+                    print(f'     Step 1: Fallback right-click used')
+
+                time.sleep(1.5)
 
                 # === STEP 2: Click "Eliminar" in the context menu ===
                 eliminar_clicked = False
 
                 # Debug: print what menu items appeared
                 try:
-                    all_items = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[role='menuitem'], li[role='menuitem'], [data-testid*='menu'] li, [data-testid*='menu'] div")
+                    all_items = wb.web_browser.find_elements(By.CSS_SELECTOR, "[role='menuitem'], li[role='option'], [data-testid*='menu-item']")
                     if all_items:
-                        texts = [i.get_attribute('innerText').strip() for i in all_items if i.get_attribute('innerText')]
+                        texts = [i.get_attribute('innerText').strip() for i in all_items if i.get_attribute('innerText').strip()]
                         print(f'     DEBUG menu items found: {texts}')
                     else:
-                        print(f'     DEBUG: no menuitem elements found in DOM')
+                        # Broader search
+                        all_visible = wb.web_browser.find_elements(By.XPATH, "//*[contains(text(),'Eliminar') or contains(text(),'Delete')]")
+                        if all_visible:
+                            print(f'     DEBUG found Eliminar/Delete elements: {len(all_visible)}')
+                        else:
+                            print(f'     DEBUG: no menu elements found in DOM')
                 except:
                     pass
 
-                # Method 1: aria-label selector
+                # Method 1: aria-label
                 try:
                     eliminar_item = wb.web_browser.find_element(
-                        By.CSS_SELECTOR, "div[role='menuitem'][aria-label='Eliminar']"
+                        By.CSS_SELECTOR, "[role='menuitem'][aria-label='Eliminar'], [aria-label='Eliminar mensaje']"
                     )
                     eliminar_item.click()
                     eliminar_clicked = True
-                    print(f'     Step 2: Clicked "Eliminar" in context menu (aria-label).')
+                    print(f'     Step 2: Clicked "Eliminar" (aria-label).')
                 except:
                     pass
 
-                # Method 2: Search all menuitems by text (any role=menuitem)
+                # Method 2: any menuitem containing "eliminar"
                 if not eliminar_clicked:
                     try:
                         menu_items = wb.web_browser.find_elements(By.CSS_SELECTOR, "[role='menuitem']")
                         for item in menu_items:
                             item_text = (item.get_attribute('innerText') or '').strip().lower()
-                            if 'eliminar' in item_text:
+                            if 'eliminar' in item_text and 'para' not in item_text:
                                 item.click()
                                 eliminar_clicked = True
-                                print(f'     Step 2: Clicked "Eliminar" in context menu (text match).')
+                                print(f'     Step 2: Clicked "Eliminar" (text match).')
                                 break
                     except:
                         pass
 
-                # Method 3: XPath text search (broader)
+                # Method 3: XPath text
                 if not eliminar_clicked:
                     try:
                         eliminar_item = wb.web_browser.find_element(
-                            By.XPATH, "//*[contains(text(),'Eliminar') and not(contains(text(),'para'))]"
+                            By.XPATH, "//*[@role='menuitem' and contains(.,'Eliminar')]"
                         )
                         eliminar_item.click()
                         eliminar_clicked = True
-                        print(f'     Step 2: Clicked "Eliminar" in context menu (XPath text).')
+                        print(f'     Step 2: Clicked "Eliminar" (XPath).')
                     except:
                         pass
 
-                # Method 4: data-testid for delete
+                # Method 4: data-testid
                 if not eliminar_clicked:
                     try:
                         eliminar_item = wb.web_browser.find_element(
-                            By.CSS_SELECTOR, "[data-testid='mi-msg-delete'], [data-testid='msg-delete'], [aria-label*='Delete'], [aria-label*='Eliminar']"
+                            By.CSS_SELECTOR, "[data-testid='mi-msg-delete'], [data-testid='msg-delete']"
                         )
                         eliminar_item.click()
                         eliminar_clicked = True
