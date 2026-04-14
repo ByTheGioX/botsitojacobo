@@ -136,6 +136,51 @@ def save_photo_history(entry):
         json.dump(history, f, indent=2, ensure_ascii=False)
 
 
+def _load_failed_sends():
+    """Load failed sends tracking dict."""
+    if os.path.exists(failed_sends_fp):
+        try:
+            with open(failed_sends_fp, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+        except:
+            pass
+    return {}
+
+
+def _save_failed_sends(data):
+    with open(failed_sends_fp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def track_failed_send(send_id, booking_info):
+    """Increment failure counter for a send. Returns the new attempt count."""
+    failed = _load_failed_sends()
+    now_iso = datetime.datetime.now().isoformat()
+    if send_id in failed:
+        failed[send_id]['attempts'] = failed[send_id].get('attempts', 0) + 1
+        failed[send_id]['last_failure'] = now_iso
+    else:
+        failed[send_id] = {
+            'attempts': 1,
+            'first_failure': now_iso,
+            'last_failure': now_iso,
+            'notified': False,
+            'booking_info': booking_info,
+        }
+    _save_failed_sends(failed)
+    return failed[send_id]['attempts']
+
+
+def clear_failed_send(send_id):
+    """Remove a send_id from failure tracking (called on success)."""
+    failed = _load_failed_sends()
+    if send_id in failed:
+        del failed[send_id]
+        _save_failed_sends(failed)
+
+
 _session_actions = []  # Tracks actions for the current execution session
 
 def log_action(booking_code, phone, status, response='-', review='-'):
@@ -1629,6 +1674,9 @@ $img.Dispose()
                     with open(photo_sent_messages_fp, 'a') as f:
                         f.write(sent_id + '\n')
 
+                    # Clear from failed tracking if it was there
+                    clear_failed_send(sent_id)
+
                     pending.append({
                         'wa_link': matched_booking['wa_link'],
                         'timestamp_sent': datetime.datetime.now().isoformat(),
@@ -1667,10 +1715,19 @@ $img.Dispose()
                         'foto': os.path.basename(photo_path),
                         'resultado': 'FALLIDO',
                     })
+                    # Track failure across executions
+                    attempts = track_failed_send(sent_id, {
+                        'date': date_str,
+                        'time': t,
+                        'sala': sala_label,
+                        'wa_link': matched_booking['wa_link'],
+                        'phone': matched_booking['wa_link'].split('phone=')[-1],
+                        'photo': os.path.basename(photo_path),
+                    })
                     log_action(
                         booking_code=f"{date_str}_{t}_{sala_label}",
                         phone=matched_booking['wa_link'].split('phone=')[-1],
-                        status='FALLIDO',
+                        status=f'FALLIDO (intento {attempts})',
                         response='-',
                         review='-'
                     )
@@ -2476,6 +2533,107 @@ def dequeue_negative_review_emails(negative_entries):
 
 
 # ============================================================
+# MODULE 7 — Notify photo group of repeated send failures
+# ============================================================
+
+def notify_group_failed_sends():
+    """If any sends have failed 2+ times and not yet notified, send an alert
+    to the photo group with the list of problematic photos."""
+    try:
+        failed = _load_failed_sends()
+        to_notify = {sid: info for sid, info in failed.items()
+                     if info.get('attempts', 0) >= 2 and not info.get('notified', False)}
+
+        if not to_notify:
+            return
+
+        print(f'\n========== MODULE 7: Notifying group of {len(to_notify)} repeated failures ==========')
+
+        # Build alert message
+        lines = ['🚨 ALERTA - Fotos no enviadas (2+ intentos):', '']
+        for sid, info in to_notify.items():
+            bi = info.get('booking_info', {})
+            first = info.get('first_failure', '')[:16].replace('T', ' ')
+            attempts = info.get('attempts', 0)
+            lines.append(
+                f"❌ {bi.get('date', '?')} {bi.get('time', '?')} {bi.get('sala', '?')} "
+                f"→ {bi.get('phone', '?')}"
+            )
+            lines.append(f"   Intentos: {attempts} | Primer fallo: {first}")
+            lines.append('')
+        lines.append('Por favor revisar manualmente.')
+        alert_msg = '\n'.join(lines)
+
+        # Open photo group and send the alert
+        print(f'  Opening photo group: {photo_group_name}')
+        try:
+            search_box = wb.web_browser.find_element(
+                By.CSS_SELECTOR, "div[contenteditable='true'][data-tab='3']"
+            )
+        except:
+            try:
+                search_box = wb.web_browser.find_element(
+                    By.CSS_SELECTOR, "div[role='textbox'][contenteditable='true']"
+                )
+            except:
+                print('  [ERROR] Could not find search box.')
+                return
+
+        search_box.click()
+        time.sleep(1)
+        pyperclip.copy(photo_group_name)
+        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+        time.sleep(2)
+
+        try:
+            group_elem = wb.web_browser.find_element(
+                By.XPATH, f"//span[@title='{photo_group_name}']"
+            )
+            group_elem.click()
+            time.sleep(3)
+        except:
+            print('  [ERROR] Could not find photo group in search results.')
+            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
+            return
+
+        # Find chat input and send the alert
+        chat_input = None
+        for sel in [
+            "footer div[contenteditable='true']",
+            "div[contenteditable='true'][data-tab]",
+            "div[aria-placeholder='Escribe un mensaje']",
+        ]:
+            try:
+                chat_input = wb.web_browser.find_element(By.CSS_SELECTOR, sel)
+                break
+            except:
+                continue
+
+        if not chat_input:
+            print('  [ERROR] Could not find chat input in group.')
+            return
+
+        wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input)
+        time.sleep(0.5)
+        pyperclip.copy(alert_msg)
+        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+        time.sleep(1)
+        ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
+        time.sleep(2)
+        print(f'  -> Alert sent to group with {len(to_notify)} failures.')
+
+        # Mark all as notified
+        for sid in to_notify:
+            failed[sid]['notified'] = True
+        _save_failed_sends(failed)
+
+        print('========== MODULE 7 DONE ==========')
+
+    except Exception as e:
+        print(f'  [ERROR] notify_group_failed_sends: {e}, line: {e.__traceback__.tb_lineno}')
+
+
+# ============================================================
 # MODULE 4 — Daily Cleanup
 # ============================================================
 
@@ -2578,6 +2736,9 @@ if photos_to_delete:
 else:
     print("\nNo photos to delete from group — skipping Module 6.")
 _cycle_stats['fotos_borradas'] = deleted_count
+
+# Module 7: Notify group of repeated send failures (2+ attempts)
+notify_group_failed_sends()
 
 # Count sends from photo_history
 try:
