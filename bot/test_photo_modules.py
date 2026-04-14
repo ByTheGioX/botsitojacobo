@@ -2082,6 +2082,13 @@ $img.Dispose()
                             ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
                             time.sleep(3)
                             print('  -> Review text sent!')
+                            log_action(
+                                booking_code=entry['booking_code'],
+                                phone=entry['wa_link'].split('phone=')[-1],
+                                status='ENVIADO',
+                                response='POSITIVA',
+                                review='review enviada'
+                            )
                         else:
                             print('  -> [ERROR] Could not find chat input for review text.')
                             updated_pending.append(entry)
@@ -2109,6 +2116,13 @@ $img.Dispose()
                         ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
                         time.sleep(3)
                         print('  Negative response sent.')
+                        log_action(
+                            booking_code=entry['booking_code'],
+                            phone=entry['wa_link'].split('phone=')[-1],
+                            status='ENVIADO',
+                            response='NEGATIVA',
+                            review='empathy + dequeue'
+                        )
                         # Accumulate for Module 5 (dequeue review email in Turitop)
                         negative_reviews.append(entry)
                         print(f'  -> Added to negative reviews queue for Turitop dequeue.')
@@ -2119,6 +2133,13 @@ $img.Dispose()
 
                 else:
                     print('  -> NEUTRAL. Not sending anything.')
+                    log_action(
+                        booking_code=entry['booking_code'],
+                        phone=entry['wa_link'].split('phone=')[-1],
+                        status='ENVIADO',
+                        response='NEUTRAL',
+                        review='-'
+                    )
 
             except Exception as e_entry:
                 print(f'  [ERROR] {e_entry}, line: {e_entry.__traceback__.tb_lineno}')
@@ -2479,10 +2500,10 @@ def daily_cleanup():
                 try:
                     sent_time = datetime.datetime.fromisoformat(entry['timestamp_sent'])
                     hours_elapsed = (now - sent_time).total_seconds() / 3600
-                    if hours_elapsed <= 24:
+                    if hours_elapsed <= 96:
                         updated.append(entry)
                     else:
-                        print(f'  Removed expired: {entry["booking_code"]}')
+                        print(f'  Removed expired (>96h): {entry["booking_code"]}')
                 except:
                     pass
 
@@ -2569,6 +2590,9 @@ try:
         _cycle_stats['envios_fail'] = sum(1 for h in _today_entries if h['resultado'] == 'FALLIDO')
 except:
     pass
+
+# Write detailed session log
+write_session_log()
 
 # Write execution log
 _log_details = (
