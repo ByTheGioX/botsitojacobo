@@ -63,6 +63,11 @@ positive_review_template_fp = os.path.join(sys.path[0], 'data', 'positive_review
 negative_review_template_fp = os.path.join(sys.path[0], 'data', 'negative_review_template.txt')
 bad_caption_ids_fp = os.path.join(sys.path[0], 'data', 'bad_caption_replied_ids.json')
 failed_sends_fp = os.path.join(sys.path[0], 'data', 'failed_photo_sends.json')
+reminder_template_fp = os.path.join(sys.path[0], 'data', 'reminder_template.txt')
+
+if not os.path.exists(reminder_template_fp):
+    with open(reminder_template_fp, 'w', encoding='utf-8') as f:
+        f.write("¡Hola! 😊\n\nHace unos días os enviamos vuestra foto en PARAPARK MÁLAGA 📸 ¡Esperamos que lo hayáis pasado de miedo!\n\n¿Qué tal fue vuestra experiencia? ¡Nos encantaría saberlo! 🎉")
 
 # Photo to send with positive review response (client can use .jpg, .jpeg, or .png)
 review_photo_fp = None
@@ -129,6 +134,44 @@ def save_photo_history(entry):
     history = history[-1000:]
     with open(photo_history_fp, 'w', encoding='utf-8') as f:
         json.dump(history, f, indent=2, ensure_ascii=False)
+
+
+_session_actions = []  # Tracks actions for the current execution session
+
+def log_action(booking_code, phone, status, response='-', review='-'):
+    """Add an action to the current session log."""
+    _session_actions.append({
+        'time': datetime.datetime.now().strftime('%H:%M'),
+        'booking': booking_code,
+        'phone': phone,
+        'status': status,
+        'response': response,
+        'review': review,
+    })
+
+def write_session_log():
+    """Write the session actions to the hourly log file."""
+    if not _session_actions:
+        return
+    os.makedirs(log_dir, exist_ok=True)
+    now = datetime.datetime.now()
+    log_file = os.path.join(log_dir, now.strftime('%Y-%m-%d') + '.log')
+
+    start_time = _session_actions[0]['time']
+    end_time = _session_actions[-1]['time']
+
+    lines = []
+    lines.append(f'\n=== SESIÓN {start_time}-{end_time} ({now.strftime("%d/%m/%Y")}) ===')
+    lines.append(f'{"RESERVA":<25} {"TELÉFONO":<20} {"ESTADO":<12} {"RESPUESTA":<25} REVIEW')
+    lines.append('-' * 95)
+    for a in _session_actions:
+        lines.append(
+            f'{a["booking"]:<25} {a["phone"]:<20} {a["status"]:<12} {a["response"]:<25} {a["review"]}'
+        )
+    lines.append('')
+
+    with open(log_file, 'a', encoding='utf-8') as f:
+        f.write('\n'.join(lines) + '\n')
 
 
 # ============================================================
@@ -1605,6 +1648,13 @@ $img.Dispose()
                         'foto': os.path.basename(photo_path),
                         'resultado': 'ENVIADO',
                     })
+                    log_action(
+                        booking_code=f"{date_str}_{t}_{sala_label}",
+                        phone=matched_booking['wa_link'].split('phone=')[-1],
+                        status='ENVIADO',
+                        response='sin respuesta',
+                        review='-'
+                    )
                 else:
                     print(f'  -> [WARN] Photo send FAILED after all attempts. Will retry next cycle.')
                     entry_all_sends_ok = False
@@ -1617,6 +1667,13 @@ $img.Dispose()
                         'foto': os.path.basename(photo_path),
                         'resultado': 'FALLIDO',
                     })
+                    log_action(
+                        booking_code=f"{date_str}_{t}_{sala_label}",
+                        phone=matched_booking['wa_link'].split('phone=')[-1],
+                        status='FALLIDO',
+                        response='-',
+                        review='-'
+                    )
 
             # After processing all times for this entry: buffer msg_id for later deletion
             if entry_all_sends_ok and sent_wa_links_this_photo:
@@ -1807,8 +1864,63 @@ def check_pending_replies():
                 sent_time = datetime.datetime.fromisoformat(entry['timestamp_sent'])
                 hours_elapsed = (now - sent_time).total_seconds() / 3600
 
-                if hours_elapsed > 24:
-                    print(f'  Expired (>24h): {entry["booking_code"]}')
+                reminder_sent = entry.get('reminder_sent', False)
+                reminder_timestamp_str = entry.get('reminder_timestamp', None)
+
+                # Check if past 48h since reminder → mark neutral and remove
+                if reminder_sent and reminder_timestamp_str:
+                    reminder_time = datetime.datetime.fromisoformat(reminder_timestamp_str)
+                    hours_since_reminder = (now - reminder_time).total_seconds() / 3600
+                    if hours_since_reminder >= 48:
+                        print(f'  No response 48h after reminder → NEUTRAL: {entry["booking_code"]}')
+                        log_action(
+                            booking_code=entry['booking_code'],
+                            phone=entry['wa_link'].split('phone=')[-1],
+                            status='ENVIADO',
+                            response='NEUTRAL (sin respuesta 96h)',
+                            review='-'
+                        )
+                        continue  # Remove from pending
+
+                # Check if 48h elapsed without response → send reminder
+                if hours_elapsed >= 48 and not reminder_sent:
+                    print(f'  No response after 48h → sending reminder: {entry["booking_code"]}')
+                    try:
+                        link = entry['wa_link'].replace("%20", "").lower().replace("api.", "web.")
+                        wb.get(link)
+                        time.sleep(5)
+                        with open(reminder_template_fp, 'r', encoding='utf-8') as f:
+                            reminder_msg = f.read().strip()
+                        chat_input = None
+                        for sel in ["footer div[contenteditable='true']", "div[contenteditable='true'][data-tab]", "div[aria-placeholder='Escribe un mensaje']"]:
+                            try:
+                                chat_input = wb.web_browser.find_element(By.CSS_SELECTOR, sel)
+                                break
+                            except:
+                                continue
+                        if chat_input:
+                            wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input)
+                            time.sleep(0.5)
+                            pyperclip.copy(reminder_msg)
+                            ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+                            time.sleep(1)
+                            ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
+                            time.sleep(2)
+                            print(f'  -> Reminder sent!')
+                            entry['reminder_sent'] = True
+                            entry['reminder_timestamp'] = now.isoformat()
+                            log_action(
+                                booking_code=entry['booking_code'],
+                                phone=entry['wa_link'].split('phone=')[-1],
+                                status='ENVIADO',
+                                response='recordatorio enviado (48h)',
+                                review='-'
+                            )
+                        else:
+                            print(f'  -> Could not find chat input for reminder.')
+                    except Exception as re:
+                        print(f'  -> [ERROR] reminder: {re}')
+                    updated_pending.append(entry)
                     continue
 
                 link = entry['wa_link'].replace("%20", "").lower().replace("api.", "web.")
