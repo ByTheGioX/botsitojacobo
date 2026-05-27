@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "PowerShell(code --version)",
+      "PowerShell(\\(Get-Command code\\).Source; code --version 2>&1 | Select-Object -First 5)",
+      "PowerShell($codeBin = \"C:\\\\Users\\\\Windows\\\\AppData\\\\Local\\\\Programs\\\\Microsoft VS Code\\\\bin\\\\code.cmd\"; if \\(Test-Path $codeBin\\) { Write-Output \"FOUND: $codeBin\"; & $codeBin --version } else { Write-Output \"NOT FOUND\"; Get-ChildItem \"C:\\\\Users\\\\Windows\\\\AppData\\\\Local\\\\Programs\\\\Microsoft VS Code\\\\bin\" -ErrorAction SilentlyContinue })",
+      "PowerShell(& \"C:\\\\Users\\\\Windows\\\\AppData\\\\Local\\\\Programs\\\\Microsoft VS Code\\\\bin\\\\code.cmd\" --install-extension long-kudo.vscode-claude-status)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "PowerShell(if \\(Test-Path \"$env:USERPROFILE\\\\.claude\\\\settings.json\"\\) { Get-Content \"$env:USERPROFILE\\\\.claude\\\\settings.json\" -Raw } else { Write-Output \"FILE_NOT_FOUND\" })",
+      "PowerShell(if \\(-not \\(Test-Path \"$env:USERPROFILE\\\\.claude\\\\scripts\"\\)\\) { New-Item -ItemType Directory -Path \"$env:USERPROFILE\\\\.claude\\\\scripts\" -Force | Out-Null }; Write-Output \"OK: $env:USERPROFILE\\\\.claude\\\\scripts\")",
+      "PowerShell(try { $s = Get-Content \"$env:USERPROFILE\\\\.claude\\\\settings.json\" -Raw | ConvertFrom-Json; Write-Output \"JSON_OK\"; Write-Output \\(\"hooks.SessionStart=\" + \\($s.hooks.SessionStart.Count\\)\\); Write-Output \\(\"hooks.PreToolUse=\" + \\($s.hooks.PreToolUse.Count\\)\\); Write-Output \\(\"mcpServers=\" + \\(\\($s.mcpServers | Get-Member -MemberType NoteProperty\\).Count\\)\\); Write-Output \\(\"permissions.allow=\" + \\($s.permissions.allow.Count\\)\\); Write-Output \\(\"permissions.deny=\" + \\($s.permissions.deny.Count\\)\\); Write-Output \\(\"effortLevel=\" + $s.effortLevel\\) } catch { Write-Output \"JSON_ERROR: $_\" })",
+      "Bash(ls \"C:/Users/Windows/.claude/projects/d--Users-Windows-Downloads-Proyectos-Giofreelancer-Pedidos-Jacobo-escaperoom/memory/\" 2>/dev/null || echo \"EMPTY\")",
+      "Read(//c/Users/Windows/.claude/projects/d--Users-Windows-Downloads-Proyectos-Giofreelancer-Pedidos-Jacobo-escaperoom/memory/**)",
+      "Skill(systematic-debugging)",
+      "Skill(systematic-debugging:*)",
+      "PowerShell(python --version; \\(Get-Command python\\).Source)",
+      "Bash(code --install-extension erdemgiray.claude-code-notifier)",
+      "PowerShell(& \"C:\\\\Users\\\\Windows\\\\AppData\\\\Local\\\\Programs\\\\Microsoft VS Code\\\\bin\\\\code.cmd\" --install-extension erdemgiray.claude-code-notifier)",
+      "PowerShell(pip install --quiet selenium webdriver-manager 2>&1)"
+    ]
+  }
+}
