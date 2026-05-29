@@ -3772,8 +3772,19 @@ while True:
     _cycle_start_ts = datetime.datetime.now()
 
     # --- Operating hours: 10:00 - 20:30 ---
+    # Can be bypassed by setting bypass_hours.txt to: false
+    _bypass_fp = os.path.join(sys.path[0], 'data', 'bypass_hours.txt')
+    _hours_enabled = True
+    try:
+        if os.path.exists(_bypass_fp):
+            _val = open(_bypass_fp, encoding='utf-8').read().strip().lower()
+            if _val == 'false':
+                _hours_enabled = False
+                print(f"[{_cycle_start_ts.strftime('%H:%M:%S')}] [MODO TEST] Proteccion de horario desactivada.")
+    except Exception:
+        pass
     _cur_t = _cycle_start_ts.time()
-    if _cur_t < datetime.time(10, 0) or _cur_t >= datetime.time(20, 30):
+    if _hours_enabled and (_cur_t < datetime.time(10, 0) or _cur_t >= datetime.time(20, 30)):
         print(f"\n[{_cycle_start_ts.strftime('%H:%M:%S')}] Fuera de horario operativo (10:00-20:30). "
               f"Durmiendo {_OFFHOURS_SLEEP//60} min...")
         try:
