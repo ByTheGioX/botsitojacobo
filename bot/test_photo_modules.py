@@ -299,6 +299,10 @@ class Browser:
             o.add_argument(f'--user-data-dir={cache_path}')
             o.add_argument('--log-level=3')
             o.add_argument('--disable-session-crashed-bubble')
+            o.add_argument('--no-sandbox')
+            o.add_argument('--disable-dev-shm-usage')
+            o.add_argument('--disable-gpu')
+            o.add_argument('--remote-debugging-port=0')
             o.add_experimental_option('excludeSwitches', ['enable-automation'])
             prefs = {"profile.exit_type": "Normal", "profile.exited_cleanly": True}
             o.add_experimental_option('prefs', prefs)
@@ -317,6 +321,15 @@ class Browser:
 
             self.driver_path = os.path.join(os.path.dirname(self.driver_path), 'chromedriver.exe')
             s = Service(executable_path=self.driver_path)
+            # Clean up singleton locks that prevent Chrome from starting after crashes
+            for lock_file in ['SingletonLock', 'SingletonSocket', 'SingletonCookie']:
+                lock_path = os.path.join(cache_path, lock_file)
+                try:
+                    if os.path.exists(lock_path):
+                        os.remove(lock_path)
+                        print(f'  [Browser] Removed stale lock: {lock_file}')
+                except Exception:
+                    pass
             self.web_browser = webdriver.Chrome(service=s, options=o)
             self.web_browser.set_window_size(width=1100, height=850)
         except Exception as e:
