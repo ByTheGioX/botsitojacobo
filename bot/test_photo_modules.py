@@ -27,6 +27,7 @@ import hashlib
 import atexit
 import signal
 import traceback
+import shutil
 
 
 # ============================================================
@@ -293,48 +294,75 @@ class Browser:
         self.waiting_time = 60
         self.debug = True
         try:
-            o = Options()
             desktop_path = os.path.join(os.environ['USERPROFILE'], 'Desktop')
             cache_path = os.path.join(desktop_path, 'browser_cache')
-            o.add_argument(f'--user-data-dir={cache_path}')
-            o.add_argument('--log-level=3')
-            o.add_argument('--disable-session-crashed-bubble')
-            o.add_argument('--no-sandbox')
-            o.add_argument('--disable-dev-shm-usage')
-            o.add_argument('--disable-gpu')
-            o.add_argument('--remote-debugging-port=0')
-            o.add_experimental_option('excludeSwitches', ['enable-automation'])
-            prefs = {"profile.exit_type": "Normal", "profile.exited_cleanly": True}
-            o.add_experimental_option('prefs', prefs)
-
-            for attempt in range(3):
-                try:
-                    self.driver_path = ChromeDriverManager().install()
-                    break
-                except Exception as e2:
-                    self.driver_path = ''
-                    print(f'driver download error: {e2}')
-                    time.sleep(10)
-            if self.driver_path == '':
-                print("failed to get drivers from web.")
-                sys.exit(1)
-
-            self.driver_path = os.path.join(os.path.dirname(self.driver_path), 'chromedriver.exe')
-            s = Service(executable_path=self.driver_path)
-            # Clean up singleton locks that prevent Chrome from starting after crashes
-            for lock_file in ['SingletonLock', 'SingletonSocket', 'SingletonCookie']:
-                lock_path = os.path.join(cache_path, lock_file)
-                try:
-                    if os.path.exists(lock_path):
-                        os.remove(lock_path)
-                        print(f'  [Browser] Removed stale lock: {lock_file}')
-                except Exception:
-                    pass
-            self.web_browser = webdriver.Chrome(service=s, options=o)
+            self.web_browser = self._launch_chrome(cache_path)
             self.web_browser.set_window_size(width=1100, height=850)
         except Exception as e:
             print(str(e))
             sys.exit(1)
+
+    def _build_chrome_options(self, cache_path):
+        o = Options()
+        o.add_argument(f'--user-data-dir={cache_path}')
+        o.add_argument('--log-level=3')
+        o.add_argument('--disable-session-crashed-bubble')
+        o.add_argument('--no-sandbox')
+        o.add_argument('--disable-dev-shm-usage')
+        o.add_argument('--disable-gpu')
+        o.add_argument('--remote-debugging-port=0')
+        o.add_experimental_option('excludeSwitches', ['enable-automation'])
+        prefs = {"profile.exit_type": "Normal", "profile.exited_cleanly": True}
+        o.add_experimental_option('prefs', prefs)
+        return o
+
+    def _clean_profile_locks(self, cache_path):
+        for lock_file in ['SingletonLock', 'SingletonSocket', 'SingletonCookie']:
+            lock_path = os.path.join(cache_path, lock_file)
+            try:
+                if os.path.exists(lock_path):
+                    os.remove(lock_path)
+                    print(f'  [Browser] Removed stale lock: {lock_file}')
+            except Exception:
+                pass
+
+    def _install_driver(self, force_fresh=False):
+        if force_fresh:
+            wdm_cache = os.path.join(os.path.expanduser('~'), '.wdm')
+            try:
+                if os.path.exists(wdm_cache):
+                    shutil.rmtree(wdm_cache)
+                    print('  [Browser] WDM cache cleared — downloading fresh ChromeDriver')
+            except Exception as ex:
+                print(f'  [Browser] Could not clear WDM cache: {ex}')
+        for attempt in range(3):
+            try:
+                driver_path = ChromeDriverManager().install()
+                return os.path.join(os.path.dirname(driver_path), 'chromedriver.exe')
+            except Exception as e2:
+                print(f'  [Browser] driver download error (attempt {attempt+1}/3): {e2}')
+                time.sleep(10)
+        return None
+
+    def _launch_chrome(self, cache_path, force_fresh_driver=False):
+        driver_path = self._install_driver(force_fresh=force_fresh_driver)
+        if not driver_path:
+            print('  [Browser] FATAL: failed to get ChromeDriver.')
+            sys.exit(1)
+        print(f'  [Browser] ChromeDriver: {driver_path}')
+        self._clean_profile_locks(cache_path)
+        o = self._build_chrome_options(cache_path)
+        s = Service(executable_path=driver_path)
+        try:
+            browser = webdriver.Chrome(service=s, options=o)
+            return browser
+        except Exception as launch_err:
+            err_msg = str(launch_err)
+            if 'Chrome instance exited' in err_msg or 'session not created' in err_msg:
+                if not force_fresh_driver:
+                    print('  [Browser] Chrome version mismatch detected — retrying with fresh driver...')
+                    return self._launch_chrome(cache_path, force_fresh_driver=True)
+            raise
 
     def dismiss_restore_dialog(self):
         """Dismiss Chrome's 'Restore pages?' dialog if it appears."""
