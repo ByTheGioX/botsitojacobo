@@ -304,14 +304,14 @@ class Browser:
 
     def _build_chrome_options(self, cache_path):
         o = Options()
+        # Config minima PROBADA en VPS Windows Server 2016 (test diag5).
+        # NO volver a agregar --log-level, --disable-session-crashed-bubble,
+        # excludeSwitches, --disable-dev-shm-usage ni --remote-debugging-port:
+        # la combinacion hace que Chrome se cierre al arrancar
+        # ("session not created: Chrome instance exited").
         o.add_argument(f'--user-data-dir={cache_path}')
-        o.add_argument('--log-level=3')
-        o.add_argument('--disable-session-crashed-bubble')
         o.add_argument('--no-sandbox')
-        o.add_argument('--disable-dev-shm-usage')
         o.add_argument('--disable-gpu')
-        o.add_argument('--remote-debugging-port=0')
-        o.add_experimental_option('excludeSwitches', ['enable-automation'])
         prefs = {"profile.exit_type": "Normal", "profile.exited_cleanly": True}
         o.add_experimental_option('prefs', prefs)
         return o
