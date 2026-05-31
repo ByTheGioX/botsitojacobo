@@ -2901,26 +2901,18 @@ def check_pending_replies():
                 last_msg = all_msgs[-1]
                 msg_classes = last_msg.get_attribute('class') or ''
                 if 'message-in' not in msg_classes:
-                    # Last message is outgoing — check if client ever replied (and we answered)
-                    last_in_index = None
-                    for _i in range(len(all_msgs) - 1, -1, -1):
-                        try:
-                            if 'message-in' in (all_msgs[_i].get_attribute('class') or ''):
-                                last_in_index = _i
-                                break
-                        except Exception:
-                            pass
-                    if last_in_index is not None:
-                        # Client replied and we already responded after their reply → remove entry
-                        print(f'  Already responded after client reply, removing: {entry["booking_code"]}')
-                        log_action(
-                            booking_code=entry['booking_code'],
-                            phone=entry['wa_link'].split('phone=')[-1],
-                            status='ENVIADO',
-                            response='ya respondido (detectado en revisión)',
-                            review='-'
-                        )
-                        continue
+                    # El último mensaje es SALIENTE (nuestro): el cliente NO ha
+                    # respondido desde nuestro último mensaje. Da igual que existan
+                    # mensajes entrantes ANTIGUOS en el historial del chat.
+                    #
+                    # BUG corregido: antes, si el cliente tenía CUALQUIER mensaje
+                    # entrante viejo (casi todos reservaron/preguntaron por WhatsApp),
+                    # la entrada se borraba como "ya respondido" en el MISMO ciclo del
+                    # envío de la foto → nunca se mandaba el recordatorio de 48h ni se
+                    # clasificaba su respuesta (positiva/negativa). Ahora la mantenemos:
+                    # cuando el cliente realmente responda, el último mensaje será
+                    # ENTRANTE y se procesará en la rama de clasificación de abajo; si
+                    # no responde, el ciclo de recordatorio 48h / expiración la cierra.
                     print(f'  No reply yet: {entry["booking_code"]}')
                     updated_pending.append(entry)
                     continue
