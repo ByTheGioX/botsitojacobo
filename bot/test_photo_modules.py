@@ -2703,6 +2703,7 @@ def check_pending_replies():
                 # ------------------------------------------------------------
                 reaction_handled = False
                 _opened_chat_input = None  # reused by 48h block to avoid double-navigation
+                _client_text_reply = False  # ¿el cliente ya respondió con texto? (prioridad sobre recordatorio)
                 try:
                     _opened_chat_input = _open_wa_chat(entry['wa_link'])
 
@@ -2715,6 +2716,21 @@ def check_pending_replies():
                     if any(m in wb.web_browser.page_source for m in invalid_markers):
                         print(f'  Invalid chat link, removing: {entry["booking_code"]}')
                         continue
+
+                    # Una respuesta de TEXTO del cliente tiene PRIORIDAD sobre cualquier
+                    # recordatorio: no hay que insistirle a quien ya contestó, hay que
+                    # mandarle la review. Detectamos respuesta mirando los 2 últimos
+                    # mensajes (misma lógica que la rama de clasificación de más abajo).
+                    try:
+                        _msgs_chk = wb.web_browser.find_elements(
+                            By.CSS_SELECTOR, "div.message-in, div.message-out"
+                        )
+                        for _mc in reversed(_msgs_chk[-2:]):
+                            if 'message-in' in (_mc.get_attribute('class') or ''):
+                                _client_text_reply = True
+                                break
+                    except Exception:
+                        pass
 
                     photo_react, text_react = _check_recent_outgoing_reactions()
 
@@ -2736,7 +2752,7 @@ def check_pending_replies():
                             reaction_handled = True
                             continue
 
-                    if photo_react and not reminder_sent:
+                    if photo_react and not reminder_sent and not _client_text_reply:
                         attempts_so_far = entry.get('reminder_attempts', 0)
                         print(f'  -> Reacción EMOJI sólo en FOTO → recordatorio anticipado: {entry["booking_code"]} (intento {attempts_so_far + 1})')
                         reminder_ok, fail_reason = _send_reminder_to_current_chat()
@@ -2775,7 +2791,8 @@ def check_pending_replies():
                     continue  # safety net (the branches above already continue)
 
                 # Check if 48h elapsed without response → send reminder
-                if hours_elapsed >= 48 and not reminder_sent:
+                # (pero NUNCA si el cliente ya respondió con texto: su respuesta manda)
+                if hours_elapsed >= 48 and not reminder_sent and not _client_text_reply:
                     attempts_so_far = entry.get('reminder_attempts', 0)
                     # After 10 consecutive failures, abandon — the link is probably
                     # permanently broken (bad phone, blocked, invalid number).
@@ -2898,21 +2915,25 @@ def check_pending_replies():
                     updated_pending.append(entry)
                     continue
 
-                last_msg = all_msgs[-1]
-                msg_classes = last_msg.get_attribute('class') or ''
-                if 'message-in' not in msg_classes:
-                    # El último mensaje es SALIENTE (nuestro): el cliente NO ha
-                    # respondido desde nuestro último mensaje. Da igual que existan
-                    # mensajes entrantes ANTIGUOS en el historial del chat.
-                    #
-                    # BUG corregido: antes, si el cliente tenía CUALQUIER mensaje
-                    # entrante viejo (casi todos reservaron/preguntaron por WhatsApp),
-                    # la entrada se borraba como "ya respondido" en el MISMO ciclo del
-                    # envío de la foto → nunca se mandaba el recordatorio de 48h ni se
-                    # clasificaba su respuesta (positiva/negativa). Ahora la mantenemos:
-                    # cuando el cliente realmente responda, el último mensaje será
-                    # ENTRANTE y se procesará en la rama de clasificación de abajo; si
-                    # no responde, el ciclo de recordatorio 48h / expiración la cierra.
+                # Buscamos la respuesta del cliente SOLO en los 2 últimos mensajes.
+                # Como nosotros enviamos siempre foto + texto de agradecimiento (2
+                # mensajes SALIENTES), un mensaje ENTRANTE dentro de los 2 últimos solo
+                # puede ser una respuesta real a la foto — nunca un mensaje viejo del
+                # historial (esos quedan en posiciones anteriores, fuera de la ventana).
+                # Mirar los 2 últimos también RESCATA el caso en que un recordatorio se
+                # mandó por error justo ENCIMA de la respuesta del cliente: la respuesta
+                # queda en penúltima posición y aun así la detectamos para enviar la review.
+                last_msg = None
+                for _m in reversed(all_msgs[-2:]):
+                    try:
+                        if 'message-in' in (_m.get_attribute('class') or ''):
+                            last_msg = _m
+                            break
+                    except Exception:
+                        continue
+                if last_msg is None:
+                    # Ningún mensaje entrante reciente → el cliente aún no respondió.
+                    # Se mantiene la entrada para el ciclo de recordatorio 48h / expiración.
                     print(f'  No reply yet: {entry["booking_code"]}')
                     updated_pending.append(entry)
                     continue
