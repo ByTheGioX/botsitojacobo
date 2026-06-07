@@ -18,7 +18,9 @@
       "PowerShell(python --version; \\(Get-Command python\\).Source)",
       "Bash(code --install-extension erdemgiray.claude-code-notifier)",
       "PowerShell(& \"C:\\\\Users\\\\Windows\\\\AppData\\\\Local\\\\Programs\\\\Microsoft VS Code\\\\bin\\\\code.cmd\" --install-extension erdemgiray.claude-code-notifier)",
-      "PowerShell(pip install --quiet selenium webdriver-manager 2>&1)"
+      "PowerShell(pip install --quiet selenium webdriver-manager 2>&1)",
+      "WebFetch(domain:www.selenium.dev)",
+      "PowerShell(if \\($?\\) { \"COMPILE OK\" } else { \"COMPILE ERROR\" })"
     ]
   }
 }
