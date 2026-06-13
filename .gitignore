@@ -39,3 +39,8 @@ Thumbs.db
 # Logs
 logs/
 *.log
+
+# Credentials — NUNCA subir al repo
+bot/data/turitop_credentials.json
+data/turitop_credentials.json
+data/openrouter_api_key.txt
