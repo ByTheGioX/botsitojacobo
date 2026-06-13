@@ -1,0 +1,32 @@
+﻿Hola, somos de PARAPARK ESCAPE ROOM
+
+ES IMPORTANTE QUE CONFIRME SU ASISTENCIA DESDE AQUÍ
+
+Nos vemos a las {booking_time} en {name_service}
+
+Estamos en Calle Victoria, 8. Llamar al telefonillo y subir por la escalera.
+Justo en frente de la Plaza de la Merced. AMPLIA LA FOTO
+
+Aquí tenéis cómo llegar: {goolge_maps_link}
+
+Si no podéis asistir, llamar con mínimo 6 horas para anular.
+
+Si no pagaste aun, solo tenemos pago con tarjeta al hacer la reserva, aquí será solo en EFECTIVO. NO BIZUM.
+
+Si sois un grupo grande, no cobramos por separado.
+
+NO lleguéis antes de vuestra hora, pero sed puntuales.
+
+Hi! we are from PARAPARK ESCAPE ROOM
+
+*ENGLISH - AUTOMATIC MESSAGE TO CONFIRM YOUR BOOKING, PLEASE REPLY YES*
+
+Hello, we are from PARAPARK ESCAPE ROOM! If you confirmed by phone your reservation, see you at {booking_time} in {name_service_en}
+
+Here address of your challenge {goolge_maps_link} MAKE ZOOM TO THE PICTURE
+
+PLEASE If do you cant assist call or message to cancel 6 hours before 
+
+Here payment is only in CASH, only have credit card from website
+
+Is NOT neccesary arrive before the time, be punctuals

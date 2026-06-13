@@ -1,0 +1,7 @@
+turitop_credentials.json 
+*.pyc 
+__pycache__/ 
+data/openrouter_api_key.txt 
+data/downloaded_photos/ 
+data/log/ 
+cdlog.txt 

@@ -1,0 +1,92 @@
+[
+  {
+    "wa_link": "https://api.whatsapp.com/send?phone=34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC",
+    "timestamp_sent": "2026-06-10T10:27:46.950838",
+    "booking_code": "5/6_17:30_4e/csi",
+    "booking_date": "5 Jun 2026",
+    "booking_day": "5",
+    "booking_time": "17:30",
+    "booking_place": "#P1"
+  },
+  {
+    "wa_link": "https://api.whatsapp.com/send?phone=34609544005",
+    "timestamp_sent": "2026-06-10T10:29:16.516883",
+    "booking_code": "6/6_11:30_4e",
+    "booking_date": "6 Jun 2026",
+    "booking_day": "6",
+    "booking_time": "11:30",
+    "booking_place": "#P1"
+  },
+  {
+    "wa_link": "https://api.whatsapp.com/send?phone=34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC",
+    "timestamp_sent": "2026-06-10T10:30:48.275884",
+    "booking_code": "6/6_17:40_csi",
+    "booking_date": "6 Jun 2026",
+    "booking_day": "6",
+    "booking_time": "17:40",
+    "booking_place": "#P2"
+  },
+  {
+    "wa_link": "https://api.whatsapp.com/send?phone=34642913042",
+    "timestamp_sent": "2026-06-10T10:32:13.483171",
+    "booking_code": "7/6_13:00_maf",
+    "booking_date": "7 Jun 2026",
+    "booking_day": "7",
+    "booking_time": "13:00",
+    "booking_place": "#P4"
+  },
+  {
+    "wa_link": "https://api.whatsapp.com/send?phone=34653578572",
+    "timestamp_sent": "2026-06-10T10:33:49.682452",
+    "booking_code": "7/6_13:10_csi",
+    "booking_date": "7 Jun 2026",
+    "booking_day": "7",
+    "booking_time": "13:10",
+    "booking_place": "#P2"
+  },
+  {
+    "wa_link": "https://api.whatsapp.com/send?phone=32%C2%A0489%C2%A034%C2%A031%C2%A012%E2%80%AC",
+    "timestamp_sent": "2026-06-10T10:35:25.253855",
+    "booking_code": "3/6_16:00_4e",
+    "booking_date": "3 Jun 2026",
+    "booking_day": "3",
+    "booking_time": "16:00",
+    "booking_place": "#P1"
+  },
+  {
+    "wa_link": "https://api.whatsapp.com/send?phone=31%C2%A06%C2%A027024287%E2%80%AC",
+    "timestamp_sent": "2026-06-10T10:36:55.521923",
+    "booking_code": "3/6_16:10_csi",
+    "booking_date": "3 Jun 2026",
+    "booking_day": "3",
+    "booking_time": "16:10",
+    "booking_place": "#P2"
+  },
+  {
+    "wa_link": "https://api.whatsapp.com/send?phone=3548992971",
+    "timestamp_sent": "2026-06-10T10:38:17.206441",
+    "booking_code": "7/6_17:30_4e",
+    "booking_date": "7 Jun 2026",
+    "booking_day": "7",
+    "booking_time": "17:30",
+    "booking_place": "#P1"
+  },
+  {
+    "wa_link": "https://api.whatsapp.com/send?phone=971585343215",
+    "timestamp_sent": "2026-06-10T10:39:47.829203",
+    "booking_code": "8/6_19:00_4e",
+    "booking_date": "8 Jun 2026",
+    "booking_day": "8",
+    "booking_time": "19:00",
+    "booking_place": "#P1"
+  },
+  {
+    "wa_link": "https://api.whatsapp.com/send?phone=23058354430Si",
+    "timestamp_sent": "2026-06-10T19:52:50.389608",
+    "booking_code": "10/6_19:00_4e",
+    "booking_date": "10 Jun 2026",
+    "booking_day": "10",
+    "booking_time": "19:00",
+    "booking_place": "#P1"
+  }
+]

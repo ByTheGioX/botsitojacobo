@@ -1,0 +1,1190 @@
+[
+  {
+    "fecha_envio": "2026-04-08 21:59:28",
+    "dia_reserva": "29/3",
+    "hora_reserva": "17:30",
+    "sala": "4e/tri/csi/maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=584145824271",
+    "foto": "photo__16_11__31_3_2026__Parapark_Má_fd31bf42.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-04-08 22:00:03",
+    "dia_reserva": "29/3",
+    "hora_reserva": "17:30",
+    "sala": "4e/tri/csi/maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=584145824271",
+    "foto": "photo__16_11__31_3_2026__Parapark_Má_fd31bf42.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-08 22:00:36",
+    "dia_reserva": "29/3",
+    "hora_reserva": "19:00",
+    "sala": "maf/tri",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=584225824271",
+    "foto": "photo__16_11__31_3_2026__Parapark_Má_bae39a25.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-10 17:19:25",
+    "dia_reserva": "10/4",
+    "hora_reserva": "16:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=447912120010",
+    "foto": "photo__17_15__10_4_2026__Isma_Staff__de4db570.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-10 17:34:16",
+    "dia_reserva": "10/4",
+    "hora_reserva": "16:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34620800225",
+    "foto": "photo__17_31__10_4_2026__Parapark_Má_320c51e2.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-10 18:49:06",
+    "dia_reserva": "10/4",
+    "hora_reserva": "17:40",
+    "sala": "tri",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34655784245",
+    "foto": "photo__18_46__10_4_2026__Seba_Staff__581c6641.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-10 19:19:11",
+    "dia_reserva": "10/4",
+    "hora_reserva": "17:30",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34643410134",
+    "foto": "photo__19_02__10_4_2026__Isma_Staff__66efb798.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-10 19:19:46",
+    "dia_reserva": "10/4",
+    "hora_reserva": "17:30",
+    "sala": "4e/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34611501973",
+    "foto": "photo__19_03__10_4_2026__Isma_Staff__a812e686.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-10 20:20:07",
+    "dia_reserva": "10/4",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34617729709",
+    "foto": "photo__20_07__10_4_2026__Isma_Staff__071f88d7.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-04-10 20:21:44",
+    "dia_reserva": "10/4",
+    "hora_reserva": "19:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34662100781",
+    "foto": "photo__20_10__10_4_2026__Seba_Staff__d15ca8c3.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-04-10 22:04:00",
+    "dia_reserva": "10/4",
+    "hora_reserva": "20:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0683%C2%A066%C2%A029%C2%A097%E2%80%AC",
+    "foto": "photo__21_50__10_4_2026__Isma_Staff__676e4b7a.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-11 19:48:46",
+    "dia_reserva": "11/4",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0600%C2%A095%C2%A055%C2%A063%E2%80%AC",
+    "foto": "photo__19_41__11_4_2026__Raul_Staff__a1482d01.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-11 20:03:48",
+    "dia_reserva": "11/4",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34689146345",
+    "foto": "photo__19_54__11_4_2026__Raul_Staff__01628c5d.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-11 20:18:39",
+    "dia_reserva": "11/4",
+    "hora_reserva": "19:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34653049224",
+    "foto": "photo__20_06__11_4_2026__Raul_Staff__e5928adc.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-12 10:03:51",
+    "dia_reserva": "11/4",
+    "hora_reserva": "20:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34663520843",
+    "foto": "photo__0_00__12_4_2026__Raul_Staff_A_74ffda40.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-12 10:04:23",
+    "dia_reserva": "11/4",
+    "hora_reserva": "19:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34697614920",
+    "foto": "photo__0_01__12_4_2026__Raul_Staff_A_637fce7f.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-12 13:48:43",
+    "dia_reserva": "12/4",
+    "hora_reserva": "11:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34617046593",
+    "foto": "photo__13_34__12_4_2026__Raul_Staff__e45289e4.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-12 20:49:21",
+    "dia_reserva": "12/4",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34603913592",
+    "foto": "photo__20_41__12_4_2026__Raul_Staff__3ef752a5.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-12 20:49:55",
+    "dia_reserva": "12/04",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34654340753",
+    "foto": "photo__20_42__12_4_2026__Raul_Staff__2496f4bd.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-13 10:03:56",
+    "dia_reserva": "12/4",
+    "hora_reserva": "20:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34623120072",
+    "foto": "photo__22_37__12_4_2026__Raul_Staff__c1350047.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-17 19:04:29",
+    "dia_reserva": "17/4",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0607%C2%A098%C2%A019%C2%A068%E2%80%AC",
+    "foto": "photo__18_53__17_4_2026__Isma_Staff__32043d6f.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-17 19:39:26",
+    "dia_reserva": "10/4",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34617729709",
+    "foto": "photo__20_07__10_4_2026__Isma_Staff__64669b7b.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-04-17 19:40:09",
+    "dia_reserva": "10/4",
+    "hora_reserva": "19:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34662100781",
+    "foto": "photo__20_10__10_4_2026__Seba_Staff__85a5dd32.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-17 20:04:23",
+    "dia_reserva": "17/4",
+    "hora_reserva": "19:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=46720267726",
+    "foto": "photo__19_57__17_4_2026__Isma_Staff__901b7ab8.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-18 10:04:02",
+    "dia_reserva": "17/4",
+    "hora_reserva": "20:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34637987468",
+    "foto": "photo__22_06__17_4_2026__Isma_Staff__0b70b945.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-18 10:04:39",
+    "dia_reserva": "17/4",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=966542212340",
+    "foto": "photo__23_17__17_4_2026__Isma_Staff__81479761.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-18 14:04:06",
+    "dia_reserva": "18/4",
+    "hora_reserva": "13:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34660201114",
+    "foto": "photo__14_00__18_4_2026__Raul_Staff__71a324ad.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-18 18:33:54",
+    "dia_reserva": "18/4",
+    "hora_reserva": "16:00",
+    "sala": "4e/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34649648412",
+    "foto": "photo__18_22__18_4_2026__Raul_Staff__250d41bc.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-18 18:49:12",
+    "dia_reserva": "18/4",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34617371228",
+    "foto": "photo__18_36__18_4_2026__Seba_Staff__c2dd45d6.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-18 20:19:06",
+    "dia_reserva": "18/4",
+    "hora_reserva": "19:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34674956369",
+    "foto": "photo__20_15__18_4_2026__Seba_Staff__43c585bb.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-18 21:48:50",
+    "dia_reserva": "18/4",
+    "hora_reserva": "20:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34683548136",
+    "foto": "photo__21_40__18_4_2026__Seba_Staff__f469b0db.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-18 21:49:25",
+    "dia_reserva": "18/4",
+    "hora_reserva": "20:30",
+    "sala": "4e/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34683548136",
+    "foto": "photo__21_45__18_4_2026__Raul_Staff__404489fd.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-18 21:50:04",
+    "dia_reserva": "18/4",
+    "hora_reserva": "19:00",
+    "sala": "4e/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34679291529",
+    "foto": "photo__21_45__18_4_2026__Raul_Staff__fa9a34ce.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-19 14:18:53",
+    "dia_reserva": "19/4",
+    "hora_reserva": "13:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34676518530",
+    "foto": "photo__14_08__19_4_2026__Raul_Staff__80406e2b.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-19 14:19:31",
+    "dia_reserva": "19/4",
+    "hora_reserva": "13:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0617%C2%A082%C2%A081%C2%A044%E2%80%AC",
+    "foto": "photo__14_08__19_4_2026__Raul_Staff__4c21bf58.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-25 09:18:05",
+    "dia_reserva": "24/4",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34645697994",
+    "foto": "photo__20_12__24_4_2026__Isma_Staff__f7fe909b.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-04-25 09:18:38",
+    "dia_reserva": "24/4",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34622835547",
+    "foto": "photo__20_12__24_4_2026__Isma_Staff__067f5dfd.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-25 09:19:12",
+    "dia_reserva": "24/4",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0616%C2%A048%C2%A084%C2%A001%E2%80%AC",
+    "foto": "photo__20_13__24_4_2026__Isma_Staff__c80a308b.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-25 09:19:44",
+    "dia_reserva": "24/4",
+    "hora_reserva": "20:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0653%C2%A050%C2%A066%C2%A033%E2%80%AC",
+    "foto": "photo__21_56__24_4_2026__Isma_Staff__ee449eba.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-25 14:18:40",
+    "dia_reserva": "25/4",
+    "hora_reserva": "11:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0674%C2%A055%C2%A021%C2%A033%E2%80%AC",
+    "foto": "photo__14_15__25_4_2026__Raul_Staff__f5aaac4d.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-25 19:33:48",
+    "dia_reserva": "25/4",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0675%C2%A077%C2%A080%C2%A073%E2%80%AC",
+    "foto": "photo__19_21__25_4_2026__Raul_Staff__066d32f3.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-25 19:34:30",
+    "dia_reserva": "25/4",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34690316111%E2%80%AC",
+    "foto": "photo__19_22__25_4_2026__Raul_Staff__193f3e4f.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-25 20:18:40",
+    "dia_reserva": "25/4",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34655940762",
+    "foto": "photo__20_02__25_4_2026__Seba_Staff__4a0b2b22.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-25 20:19:13",
+    "dia_reserva": "25/4",
+    "hora_reserva": "19:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0636%C2%A073%C2%A016%C2%A003%E2%80%AC",
+    "foto": "photo__20_13__25_4_2026__Seba_Staff__f69cc685.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-25 20:33:39",
+    "dia_reserva": "25/4",
+    "hora_reserva": "19:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34601122326",
+    "foto": "photo__20_20__25_4_2026__Raul_Staff__02705b0f.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-25 21:43:43",
+    "dia_reserva": "25/4",
+    "hora_reserva": "20:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34658324461",
+    "foto": "photo__21_29__25_4_2026__Raul_Staff__b53a185d.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-26 10:13:46",
+    "dia_reserva": "24/4",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34645697994",
+    "foto": "photo__10_01__26_4_2026__Parapark_Má_f4a5c1f0.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-04-26 14:28:50",
+    "dia_reserva": "26/4",
+    "hora_reserva": "13:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34681874418",
+    "foto": "photo__14_16__26_4_2026__Raul_Staff__2ce9e5cd.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-01 17:43:58",
+    "dia_reserva": "1/5",
+    "hora_reserva": "16:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0689%C2%A078%C2%A037%C2%A072%E2%80%AC",
+    "foto": "photo__17_27__1_5_2026__Isma_Staff_P_b6c332b9.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-01 17:44:32",
+    "dia_reserva": "1/5",
+    "hora_reserva": "16:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34601500884",
+    "foto": "photo__17_27__1_5_2026__Isma_Staff_P_2e8f5396.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-01 21:28:46",
+    "dia_reserva": "1/5",
+    "hora_reserva": "17:30",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34678644739",
+    "foto": "photo__21_24__1_5_2026__Isma_Staff_P_15312970.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-01 21:29:27",
+    "dia_reserva": "1/5",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34635144142",
+    "foto": "photo__21_25__1_5_2026__Isma_Staff_P_439dad39.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-02 10:13:48",
+    "dia_reserva": "1/5",
+    "hora_reserva": "20:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34646461916",
+    "foto": "photo__0_11__2_5_2026__Isma_Staff_Pa_8e4d9058.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-10 22:15:39",
+    "dia_reserva": "9/5",
+    "hora_reserva": "14:30",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34665976040",
+    "foto": "photo__19_45__9_5_2026__Raul_Staff_A_d3e79185.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-10 22:16:22",
+    "dia_reserva": "9/5",
+    "hora_reserva": "19:00",
+    "sala": "maf/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0628%C2%A061%C2%A027%C2%A078%E2%80%AC",
+    "foto": "photo__20_07__9_5_2026__Seba_Staff__f7118c3a.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-10 22:17:06",
+    "dia_reserva": "9/5",
+    "hora_reserva": "20:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34747414084",
+    "foto": "photo__21_26__9_5_2026__Seba_Staff__d7e6a772.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-10 22:17:47",
+    "dia_reserva": "9/5",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34675651585",
+    "foto": "photo__21_28__9_5_2026__Raul_Staff_A_8b3f1ebf.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-10 22:18:30",
+    "dia_reserva": "10/5",
+    "hora_reserva": "17:30",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34722714718",
+    "foto": "photo__18_40__10_5_2026__Raul_Staff__d52f2040.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-10 22:19:12",
+    "dia_reserva": "10/5",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34653197010",
+    "foto": "photo__18_41__10_5_2026__Raul_Staff__602f143b.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-12 10:08:52",
+    "dia_reserva": "8/5",
+    "hora_reserva": "16:00",
+    "sala": "4e/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34620444357",
+    "foto": "photo__17_11__8_5_2026__Isma_Staff_P_b2b01d1c.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-16 14:15:48",
+    "dia_reserva": "15/5",
+    "hora_reserva": "16:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34630660579",
+    "foto": "photo__18_38__15_5_2026__Isma_Staff__504f8d10.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-16 14:16:22",
+    "dia_reserva": "15/5",
+    "hora_reserva": "17:30",
+    "sala": "4e/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34620615782",
+    "foto": "photo__18_38__15_5_2026__Isma_Staff__3e84ecfd.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-16 14:16:57",
+    "dia_reserva": "15/5",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34680445843",
+    "foto": "photo__12_38__16_5_2026__Isma_Staff__9d446e16.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-16 14:17:31",
+    "dia_reserva": "15/5",
+    "hora_reserva": "19:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34657852342",
+    "foto": "photo__12_38__16_5_2026__Isma_Staff__2cf71953.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-16 14:18:06",
+    "dia_reserva": "16/5",
+    "hora_reserva": "11:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=4915168507981",
+    "foto": "photo__14_05__16_5_2026__Raul_Staff__d4aa4a20.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-16 14:18:40",
+    "dia_reserva": "16/5",
+    "hora_reserva": "13:10",
+    "sala": "tri",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34637484655",
+    "foto": "photo__14_13__16_5_2026__Seba_Staff__2efa2b30.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-16 18:26:55",
+    "dia_reserva": "16/5",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34662691916",
+    "foto": "photo__18_23__16_5_2026__Seba_Staff__c07c7b2e.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-16 19:24:10",
+    "dia_reserva": "16/5",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34661826756",
+    "foto": "photo__19_06__16_5_2026__Raul_Staff__1e08e7bf.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-16 20:21:43",
+    "dia_reserva": "16/5",
+    "hora_reserva": "19:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34676007933",
+    "foto": "photo__20_14__16_5_2026__Seba_Staff__03b96ad6.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-16 21:00:57",
+    "dia_reserva": "16/5",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0635%C2%A088%C2%A014%C2%A013%E2%80%AC",
+    "foto": "photo__20_54__16_5_2026__Raul_Staff__be48df43.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-16 21:59:55",
+    "dia_reserva": "16/5",
+    "hora_reserva": "20:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34670238951",
+    "foto": "photo__21_50__16_5_2026__Raul_Staff__fad1cdd4.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-17 19:43:08",
+    "dia_reserva": "17/5",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34674807460",
+    "foto": "photo__19_25__17_5_2026__Raul_Staff__dc9746d0.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-17 19:43:45",
+    "dia_reserva": "17/5",
+    "hora_reserva": "16:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0652%C2%A090%C2%A019%C2%A066%E2%80%AC",
+    "foto": "photo__19_25__17_5_2026__Raul_Staff__5700795c.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-30 17:18:04",
+    "dia_reserva": "23/5",
+    "hora_reserva": "16:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34635122835",
+    "foto": "photo__17_54__23_5_2026__Raul_Staff__da68105b.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-30 17:18:43",
+    "dia_reserva": "23/5",
+    "hora_reserva": "17:30",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34603458949",
+    "foto": "photo__19_45__23_5_2026__Raul_Staff__1b83fb42.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-30 17:19:21",
+    "dia_reserva": "23/5",
+    "hora_reserva": "19:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34649814146",
+    "foto": "photo__14_13__24_5_2026__Raul_Staff__72b8344b.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-30 17:19:58",
+    "dia_reserva": "24/5",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0649%C2%A051%C2%A050%C2%A037%E2%80%AC",
+    "foto": "photo__20_22__24_5_2026__Raul_Staff__0a457348.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-30 17:20:40",
+    "dia_reserva": "24/5",
+    "hora_reserva": "16:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34635280014",
+    "foto": "photo__20_23__24_5_2026__Raul_Staff__498a976d.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-30 17:21:17",
+    "dia_reserva": "29/5",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34610648642",
+    "foto": "photo__13_53__29_5_2026__Raul_Staff__e7eee61e.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-30 17:21:55",
+    "dia_reserva": "29/5",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34651560074",
+    "foto": "photo__19_19__29_5_2026__Raul_Staff__5c890ae6.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-30 17:22:32",
+    "dia_reserva": "30/5",
+    "hora_reserva": "11:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34647357305",
+    "foto": "photo__12_29__30_5_2026__Raul_Staff__72451fca.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-30 17:23:10",
+    "dia_reserva": "30/5",
+    "hora_reserva": "14:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=31657059941",
+    "foto": "photo__15_36__30_5_2026__Raul_Staff__85f5784e.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-30 19:14:53",
+    "dia_reserva": "30/5",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34660130196",
+    "foto": "photo__18_57__30_5_2026__Raul_Staff__216fbd3f.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-05-31 18:25:07",
+    "dia_reserva": "31/5",
+    "hora_reserva": "16:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0722%C2%A080%C2%A042%C2%A083%E2%80%AC",
+    "foto": "photo__18_21__31_5_2026__Raul_Staff__1711cde4.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-06-02 13:53:29",
+    "dia_reserva": "30/5",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34625490565",
+    "foto": "photo__13_49__2_6_2026__Raul_Staff_A_ab65fb80.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-06-02 13:54:11",
+    "dia_reserva": "30/5",
+    "hora_reserva": "20:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34665943110",
+    "foto": "photo__13_49__2_6_2026__Raul_Staff_A_4eba7e6a.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-06-05 19:19:42",
+    "dia_reserva": "5/6",
+    "hora_reserva": "17:30",
+    "sala": "4e/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC",
+    "foto": "photo__19_06__5_6_2026__Isma_Staff_P_33e06cc1.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-06 18:29:50",
+    "dia_reserva": "6/6",
+    "hora_reserva": "11:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34609544005",
+    "foto": "photo__18_17__6_6_2026__Raul_Staff_A_80a1adef.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-06 19:04:31",
+    "dia_reserva": "6/6",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC",
+    "foto": "photo__18_51__6_6_2026__Raul_Staff_A_1861603f.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-07 16:00:58",
+    "dia_reserva": "7/6",
+    "hora_reserva": "13:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34642913042",
+    "foto": "photo__15_50__7_6_2026__Raul_Staff_A_704e5154.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-07 16:02:37",
+    "dia_reserva": "7/6",
+    "hora_reserva": "13:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34653578572",
+    "foto": "photo__15_50__7_6_2026__Raul_Staff_A_8c7652bb.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-07 16:04:13",
+    "dia_reserva": "3/6",
+    "hora_reserva": "16:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=32%C2%A0489%C2%A034%C2%A031%C2%A012%E2%80%AC",
+    "foto": "photo__15_51__7_6_2026__Raul_Staff_A_a7712775.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-07 16:05:54",
+    "dia_reserva": "3/6",
+    "hora_reserva": "16:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=31%C2%A06%C2%A027024287%E2%80%AC",
+    "foto": "photo__15_52__7_6_2026__Raul_Staff_A_67c65110.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-07 18:50:42",
+    "dia_reserva": "7/6",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=3548992971",
+    "foto": "photo__18_41__7_6_2026__Seba_Staff__6cfcb226.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:09:56",
+    "dia_reserva": "5/6",
+    "hora_reserva": "17:30",
+    "sala": "4e/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC",
+    "foto": "photo__19_06__5_6_2026__Isma_Staff_P_33e06cc1.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:11:41",
+    "dia_reserva": "6/6",
+    "hora_reserva": "11:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34609544005",
+    "foto": "photo__18_17__6_6_2026__Raul_Staff_A_80a1adef.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:13:30",
+    "dia_reserva": "6/6",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC",
+    "foto": "photo__18_51__6_6_2026__Raul_Staff_A_1861603f.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:15:14",
+    "dia_reserva": "7/6",
+    "hora_reserva": "13:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34642913042",
+    "foto": "photo__15_50__7_6_2026__Raul_Staff_A_704e5154.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:16:59",
+    "dia_reserva": "7/6",
+    "hora_reserva": "13:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34653578572",
+    "foto": "photo__15_50__7_6_2026__Raul_Staff_A_8c7652bb.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:18:43",
+    "dia_reserva": "3/6",
+    "hora_reserva": "16:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=32%C2%A0489%C2%A034%C2%A031%C2%A012%E2%80%AC",
+    "foto": "photo__15_51__7_6_2026__Raul_Staff_A_a7712775.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:20:25",
+    "dia_reserva": "3/6",
+    "hora_reserva": "16:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=31%C2%A06%C2%A027024287%E2%80%AC",
+    "foto": "photo__15_52__7_6_2026__Raul_Staff_A_67c65110.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:22:09",
+    "dia_reserva": "7/6",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=3548992971",
+    "foto": "photo__18_41__7_6_2026__Seba_Staff__6cfcb226.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:43:10",
+    "dia_reserva": "5/6",
+    "hora_reserva": "17:30",
+    "sala": "4e/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC",
+    "foto": "photo__19_06__5_6_2026__Isma_Staff_P_33e06cc1.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:44:55",
+    "dia_reserva": "6/6",
+    "hora_reserva": "11:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34609544005",
+    "foto": "photo__18_17__6_6_2026__Raul_Staff_A_80a1adef.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:46:41",
+    "dia_reserva": "6/6",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC",
+    "foto": "photo__18_51__6_6_2026__Raul_Staff_A_1861603f.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:48:31",
+    "dia_reserva": "7/6",
+    "hora_reserva": "13:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34642913042",
+    "foto": "photo__15_50__7_6_2026__Raul_Staff_A_704e5154.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:50:22",
+    "dia_reserva": "7/6",
+    "hora_reserva": "13:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34653578572",
+    "foto": "photo__15_50__7_6_2026__Raul_Staff_A_8c7652bb.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:52:07",
+    "dia_reserva": "3/6",
+    "hora_reserva": "16:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=32%C2%A0489%C2%A034%C2%A031%C2%A012%E2%80%AC",
+    "foto": "photo__15_51__7_6_2026__Raul_Staff_A_a7712775.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:53:53",
+    "dia_reserva": "3/6",
+    "hora_reserva": "16:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=31%C2%A06%C2%A027024287%E2%80%AC",
+    "foto": "photo__15_52__7_6_2026__Raul_Staff_A_67c65110.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 10:55:37",
+    "dia_reserva": "7/6",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=3548992971",
+    "foto": "photo__18_41__7_6_2026__Seba_Staff__6cfcb226.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 11:16:45",
+    "dia_reserva": "5/6",
+    "hora_reserva": "17:30",
+    "sala": "4e/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC",
+    "foto": "photo__19_06__5_6_2026__Isma_Staff_P_33e06cc1.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 11:18:35",
+    "dia_reserva": "6/6",
+    "hora_reserva": "11:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34609544005",
+    "foto": "photo__18_17__6_6_2026__Raul_Staff_A_80a1adef.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 11:20:23",
+    "dia_reserva": "6/6",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC",
+    "foto": "photo__18_51__6_6_2026__Raul_Staff_A_1861603f.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 11:22:13",
+    "dia_reserva": "7/6",
+    "hora_reserva": "13:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34642913042",
+    "foto": "photo__15_50__7_6_2026__Raul_Staff_A_704e5154.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 11:23:58",
+    "dia_reserva": "7/6",
+    "hora_reserva": "13:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34653578572",
+    "foto": "photo__15_50__7_6_2026__Raul_Staff_A_8c7652bb.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 11:25:50",
+    "dia_reserva": "3/6",
+    "hora_reserva": "16:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=32%C2%A0489%C2%A034%C2%A031%C2%A012%E2%80%AC",
+    "foto": "photo__15_51__7_6_2026__Raul_Staff_A_a7712775.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 11:27:39",
+    "dia_reserva": "3/6",
+    "hora_reserva": "16:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=31%C2%A06%C2%A027024287%E2%80%AC",
+    "foto": "photo__15_52__7_6_2026__Raul_Staff_A_67c65110.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 11:29:26",
+    "dia_reserva": "7/6",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=3548992971",
+    "foto": "photo__18_41__7_6_2026__Seba_Staff__6cfcb226.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 11:50:30",
+    "dia_reserva": "5/6",
+    "hora_reserva": "17:30",
+    "sala": "4e/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC",
+    "foto": "photo__19_06__5_6_2026__Isma_Staff_P_33e06cc1.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 11:52:14",
+    "dia_reserva": "6/6",
+    "hora_reserva": "11:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34609544005",
+    "foto": "photo__18_17__6_6_2026__Raul_Staff_A_80a1adef.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 11:53:57",
+    "dia_reserva": "6/6",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC",
+    "foto": "photo__18_51__6_6_2026__Raul_Staff_A_1861603f.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-08 11:55:39",
+    "dia_reserva": "7/6",
+    "hora_reserva": "13:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34642913042",
+    "foto": "photo__15_50__7_6_2026__Raul_Staff_A_704e5154.jpg",
+    "resultado": "FALLIDO"
+  },
+  {
+    "fecha_envio": "2026-06-10 10:28:30",
+    "dia_reserva": "5/6",
+    "hora_reserva": "17:30",
+    "sala": "4e/csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC",
+    "foto": "photo__19_06__5_6_2026__Isma_Staff_P_33e06cc1.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-06-10 10:29:58",
+    "dia_reserva": "6/6",
+    "hora_reserva": "11:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34609544005",
+    "foto": "photo__18_17__6_6_2026__Raul_Staff_A_80a1adef.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-06-10 10:31:24",
+    "dia_reserva": "6/6",
+    "hora_reserva": "17:40",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC",
+    "foto": "photo__18_51__6_6_2026__Raul_Staff_A_1861603f.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-06-10 10:33:00",
+    "dia_reserva": "7/6",
+    "hora_reserva": "13:00",
+    "sala": "maf",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34642913042",
+    "foto": "photo__15_50__7_6_2026__Raul_Staff_A_704e5154.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-06-10 10:34:33",
+    "dia_reserva": "7/6",
+    "hora_reserva": "13:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=34653578572",
+    "foto": "photo__15_50__7_6_2026__Raul_Staff_A_8c7652bb.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-06-10 10:36:02",
+    "dia_reserva": "3/6",
+    "hora_reserva": "16:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=32%C2%A0489%C2%A034%C2%A031%C2%A012%E2%80%AC",
+    "foto": "photo__15_51__7_6_2026__Raul_Staff_A_a7712775.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-06-10 10:37:33",
+    "dia_reserva": "3/6",
+    "hora_reserva": "16:10",
+    "sala": "csi",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=31%C2%A06%C2%A027024287%E2%80%AC",
+    "foto": "photo__15_52__7_6_2026__Raul_Staff_A_67c65110.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-06-10 10:38:58",
+    "dia_reserva": "7/6",
+    "hora_reserva": "17:30",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=3548992971",
+    "foto": "photo__18_41__7_6_2026__Seba_Staff__6cfcb226.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-06-10 10:40:28",
+    "dia_reserva": "8/6",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=971585343215",
+    "foto": "photo__12_54__9_6_2026__Raul_Staff_A_24662016.jpg",
+    "resultado": "ENVIADO"
+  },
+  {
+    "fecha_envio": "2026-06-10 19:53:17",
+    "dia_reserva": "10/6",
+    "hora_reserva": "19:00",
+    "sala": "4e",
+    "telefono_cliente": "https://api.whatsapp.com/send?phone=23058354430Si",
+    "foto": "photo__19_42__10_6_2026__Raul_Staff__ec390a60.jpg",
+    "resultado": "ENVIADO"
+  }
+]

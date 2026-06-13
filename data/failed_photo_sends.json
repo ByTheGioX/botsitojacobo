@@ -1,0 +1,16 @@
+{
+  "10/4_19:00_4e_https://api.whatsapp.com/send?phone=34617729709": {
+    "attempts": 1,
+    "first_failure": "2026-04-17T19:39:26.799212",
+    "last_failure": "2026-04-17T19:39:26.799212",
+    "notified": false,
+    "booking_info": {
+      "date": "10/4",
+      "time": "19:00",
+      "sala": "4e",
+      "wa_link": "https://api.whatsapp.com/send?phone=34617729709",
+      "phone": "34617729709",
+      "photo": "photo__20_07__10_4_2026__Isma_Staff__64669b7b.jpg"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": "2026-04-25T10:02:25.607226",
+    "booking_code": "24/4_17:40_csi",
+    "phone": "34622835547",
+    "wa_link": "https://api.whatsapp.com/send?phone=34622835547",
+    "reply_text": "Se eliminó este mensaje.\n9:20",
+    "ai_classification": "NEUTRAL"
+  },
+  {
+    "timestamp": "2026-04-26T10:42:27.943441",
+    "booking_code": "24/4_17:30_4e",
+    "phone": "34645697994",
+    "wa_link": "https://api.whatsapp.com/send?phone=34645697994",
+    "reply_text": "Me comentó su compañero que le dijésemos que fuimos el viernes porque hay futuros descuentos",
+    "ai_classification": "NEUTRAL"
+  },
+  {
+    "timestamp": "2026-05-18T14:48:09.690552",
+    "booking_code": "15/5_16:00_maf",
+    "phone": "34630660579",
+    "wa_link": "https://api.whatsapp.com/send?phone=34630660579",
+    "reply_text": "Por cieerto factura envian?",
+    "ai_classification": "NEUTRAL"
+  }
+]

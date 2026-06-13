@@ -1,0 +1,53 @@
+{
+  "total": 4,
+  "ok": [
+    {
+      "photo": "photo__19_06__5_6_2026__Isma_Staff_P_33e06cc1.jpg",
+      "caption": "Isma Staff Parapark\n5/6 17:30/40 4e/csi\n19:06",
+      "date": "5/6",
+      "times": [
+        "17:30",
+        "17:40"
+      ],
+      "salas": [
+        "4e",
+        "csi"
+      ]
+    },
+    {
+      "photo": "photo__18_51__6_6_2026__Raul_Staff_A_1861603f.jpg",
+      "caption": "Raul Staff Amigo Cobano\n6/6 17:40 csi\n18:51",
+      "date": "6/6",
+      "times": [
+        "17:40"
+      ],
+      "salas": [
+        "csi"
+      ]
+    },
+    {
+      "photo": "photo__17_13__7_6_2026__Seba_Staff__47453bd3.jpg",
+      "caption": "Seba Staff\n7/6 16:00 4e\n17:13",
+      "date": "7/6",
+      "times": [
+        "16:00"
+      ],
+      "salas": [
+        "4e"
+      ]
+    },
+    {
+      "photo": "photo__18_41__7_6_2026__Seba_Staff__6cfcb226.jpg",
+      "caption": "Seba Staff\n7/6 17:30 4e\n18:41",
+      "date": "7/6",
+      "times": [
+        "17:30"
+      ],
+      "salas": [
+        "4e"
+      ]
+    }
+  ],
+  "no_description": [],
+  "bad_nomenclature": []
+}

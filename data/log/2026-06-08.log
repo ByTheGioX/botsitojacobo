@@ -1,0 +1,66 @@
+
+=== SESIÓN 10:09-10:22 (08/06/2026) ===
+RESERVA                   TELÉFONO             ESTADO       RESPUESTA                 REVIEW
+-----------------------------------------------------------------------------------------------
+5/6_17:30_4e/csi          34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC FALLIDO (intento 2) -                         -
+6/6_11:30_4e              34609544005          FALLIDO (intento 2) -                         -
+6/6_17:40_csi             34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC FALLIDO (intento 2) -                         -
+7/6_13:00_maf             34642913042          FALLIDO (intento 2) -                         -
+7/6_13:10_csi             34653578572          FALLIDO (intento 2) -                         -
+3/6_16:00_4e              32%C2%A0489%C2%A034%C2%A031%C2%A012%E2%80%AC FALLIDO (intento 2) -                         -
+3/6_16:10_csi             31%C2%A06%C2%A027024287%E2%80%AC FALLIDO (intento 2) -                         -
+7/6_17:30_4e              3548992971           FALLIDO (intento 2) -                         -
+
+[2026-06-08 10:22:09] NEGATIVO | Fotos nuevas: 9 | Envios OK: 0 | Envios FAIL: 8 | Reviews negativas: 0 | Fotos borradas: 0
+
+=== SESIÓN 10:09-10:55 (08/06/2026) ===
+RESERVA                   TELÉFONO             ESTADO       RESPUESTA                 REVIEW
+-----------------------------------------------------------------------------------------------
+5/6_17:30_4e/csi          34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC FALLIDO (intento 2) -                         -
+6/6_11:30_4e              34609544005          FALLIDO (intento 2) -                         -
+6/6_17:40_csi             34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC FALLIDO (intento 2) -                         -
+7/6_13:00_maf             34642913042          FALLIDO (intento 2) -                         -
+7/6_13:10_csi             34653578572          FALLIDO (intento 2) -                         -
+3/6_16:00_4e              32%C2%A0489%C2%A034%C2%A031%C2%A012%E2%80%AC FALLIDO (intento 2) -                         -
+3/6_16:10_csi             31%C2%A06%C2%A027024287%E2%80%AC FALLIDO (intento 2) -                         -
+7/6_17:30_4e              3548992971           FALLIDO (intento 2) -                         -
+5/6_17:30_4e/csi          34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC FALLIDO (intento 3) -                         -
+6/6_11:30_4e              34609544005          FALLIDO (intento 3) -                         -
+6/6_17:40_csi             34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC FALLIDO (intento 3) -                         -
+7/6_13:00_maf             34642913042          FALLIDO (intento 3) -                         -
+7/6_13:10_csi             34653578572          FALLIDO (intento 3) -                         -
+3/6_16:00_4e              32%C2%A0489%C2%A034%C2%A031%C2%A012%E2%80%AC FALLIDO (intento 3) -                         -
+3/6_16:10_csi             31%C2%A06%C2%A027024287%E2%80%AC FALLIDO (intento 3) -                         -
+7/6_17:30_4e              3548992971           FALLIDO (intento 3) -                         -
+
+[2026-06-08 10:55:37] NEGATIVO | Fotos nuevas: 9 | Envios OK: 0 | Envios FAIL: 16 | Reviews negativas: 0 | Fotos borradas: 0
+
+=== SESIÓN 10:09-11:29 (08/06/2026) ===
+RESERVA                   TELÉFONO             ESTADO       RESPUESTA                 REVIEW
+-----------------------------------------------------------------------------------------------
+5/6_17:30_4e/csi          34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC FALLIDO (intento 2) -                         -
+6/6_11:30_4e              34609544005          FALLIDO (intento 2) -                         -
+6/6_17:40_csi             34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC FALLIDO (intento 2) -                         -
+7/6_13:00_maf             34642913042          FALLIDO (intento 2) -                         -
+7/6_13:10_csi             34653578572          FALLIDO (intento 2) -                         -
+3/6_16:00_4e              32%C2%A0489%C2%A034%C2%A031%C2%A012%E2%80%AC FALLIDO (intento 2) -                         -
+3/6_16:10_csi             31%C2%A06%C2%A027024287%E2%80%AC FALLIDO (intento 2) -                         -
+7/6_17:30_4e              3548992971           FALLIDO (intento 2) -                         -
+5/6_17:30_4e/csi          34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC FALLIDO (intento 3) -                         -
+6/6_11:30_4e              34609544005          FALLIDO (intento 3) -                         -
+6/6_17:40_csi             34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC FALLIDO (intento 3) -                         -
+7/6_13:00_maf             34642913042          FALLIDO (intento 3) -                         -
+7/6_13:10_csi             34653578572          FALLIDO (intento 3) -                         -
+3/6_16:00_4e              32%C2%A0489%C2%A034%C2%A031%C2%A012%E2%80%AC FALLIDO (intento 3) -                         -
+3/6_16:10_csi             31%C2%A06%C2%A027024287%E2%80%AC FALLIDO (intento 3) -                         -
+7/6_17:30_4e              3548992971           FALLIDO (intento 3) -                         -
+5/6_17:30_4e/csi          34%C2%A0661%C2%A017%C2%A038%C2%A050%E2%80%AC FALLIDO (intento 4) -                         -
+6/6_11:30_4e              34609544005          FALLIDO (intento 4) -                         -
+6/6_17:40_csi             34%C2%A0644%C2%A040%C2%A004%C2%A086%E2%80%AC FALLIDO (intento 4) -                         -
+7/6_13:00_maf             34642913042          FALLIDO (intento 4) -                         -
+7/6_13:10_csi             34653578572          FALLIDO (intento 4) -                         -
+3/6_16:00_4e              32%C2%A0489%C2%A034%C2%A031%C2%A012%E2%80%AC FALLIDO (intento 4) -                         -
+3/6_16:10_csi             31%C2%A06%C2%A027024287%E2%80%AC FALLIDO (intento 4) -                         -
+7/6_17:30_4e              3548992971           FALLIDO (intento 4) -                         -
+
+[2026-06-08 11:29:27] NEGATIVO | Fotos nuevas: 9 | Envios OK: 0 | Envios FAIL: 24 | Reviews negativas: 0 | Fotos borradas: 0
