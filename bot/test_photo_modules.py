@@ -958,7 +958,10 @@ def scrape_photo_group():
             messages = wb.web_browser.find_elements(By.CSS_SELECTOR, "div.message-in")
 
         # Get all messages - we'll process all including our own photos
-        # Deduplication is handled by processed_ids.json (msg_id tracking)
+        # Dedup de ENVIADOS: photo_sent_messages.txt (Módulo 2) + borrado del grupo
+        # (Módulo 6). processed_ids.json SOLO evita re-examinar mensajes sin foto,
+        # fotos sin nomenclatura ya respondidas, y fotos > MAX_MESSAGE_AGE_HOURS.
+        # Una foto buena NO se marca aquí hasta que su envío se confirme.
         incoming_messages = []
         for m in messages:
             try:
@@ -982,6 +985,30 @@ def scrape_photo_group():
 
         # Use a list of processed IDs instead of a broken string timestamp comparison
         processed_ids_fp = os.path.join(sys.path[0], 'data', 'processed_photo_ids.json')
+
+        # --- Migración única de recuperación (v2) ---
+        # Bug histórico: una foto se marcaba como "procesada" en processed_photo_ids.json
+        # en cuanto se DESCARGABA, ANTES de confirmar el envío. Si el envío fallaba
+        # (Turitop deslogueado, reserva aún no cargada, etc.) la foto quedaba marcada
+        # para siempre: descargada pero NUNCA enviada ni reintentada. Eso es lo que
+        # producía "70 mensajes, 0 nuevas" en cada ciclo con fotos sin enviar.
+        # Limpiamos processed_photo_ids.json UNA sola vez para que esas fotos atascadas
+        # se reevalúen y se envíen. La nueva lógica (abajo) ya NO marca como procesada
+        # una foto buena hasta que el envío se confirma (photo_sent_messages.txt) o se
+        # elimina del grupo (Módulo 6), así que el problema no se repite. El reenvío
+        # duplicado lo impide photo_sent_messages.txt, que es el dedup real de enviados.
+        _reset_marker_fp = os.path.join(sys.path[0], 'data', '.processed_ids_reset_v2')
+        if not os.path.exists(_reset_marker_fp):
+            try:
+                if os.path.exists(processed_ids_fp):
+                    os.remove(processed_ids_fp)
+                    print('  [MIGRACION] processed_photo_ids.json limpiado una vez '
+                          'para recuperar fotos descargadas-pero-no-enviadas.')
+                with open(_reset_marker_fp, 'w', encoding='utf-8') as _mf:
+                    _mf.write(datetime.datetime.now().isoformat())
+            except Exception as _mig_e:
+                print(f'  [MIGRACION] No se pudo limpiar processed IDs: {_mig_e}')
+
         reprocess = '--reprocess' in sys.argv
         processed_ids = []
         if reprocess:
@@ -1151,9 +1178,14 @@ def scrape_photo_group():
                     parsed['msg_timestamp'] = msg_timestamp
                     photo_entries.append(parsed)
                     print(f'  -> photo entry downloaded successfully!')
-                    new_processed.add(msg_id)
-                    # NOTE: delete is handled in Module 6 AFTER confirmed send,
-                    # so the photo stays in the group as a safety net if send fails.
+                    # IMPORTANTE: NO marcamos esta foto como procesada aquí.
+                    # Solo se considera "terminada" cuando el envío se confirma
+                    # (Módulo 2 la registra en photo_sent_messages.txt y la encola
+                    # para borrado en Módulo 6). Si marcáramos aquí y el envío
+                    # fallara (Turitop deslogueado, sin reserva, error de pegado),
+                    # la foto quedaría descargada-pero-no-enviada para siempre.
+                    # Dejándola sin marcar, el próximo ciclo la reintenta hasta
+                    # que se envíe o supere MAX_MESSAGE_AGE_HOURS (7 días).
                 else:
                     print(f'  -> [WARN] ALL download strategies failed. Will retry next cycle.')
 
@@ -1843,6 +1875,107 @@ def delete_sent_photos_from_group(msg_ids):
     return deleted_count
 
 
+# ------------------------------------------------------------
+# Helpers de verificación de envío.
+# WhatsApp renombra sus clases internas con frecuencia; si el selector
+# div.message-out muere, el bot enviaba bien pero "no confirmaba" → reenviaba
+# la misma foto cada ciclo (duplicados) y nunca registraba al cliente en
+# pending_replies (sin recordatorios ni análisis). Por eso se cuenta con
+# VARIOS selectores a la vez: data-id^='true_' es el formato estable de los
+# mensajes propios (false_ = entrantes) y sobrevive a los renombres de clases.
+# ------------------------------------------------------------
+_OUTGOING_MSG_SELECTORS = [
+    "div.message-out",
+    "div[class*='message-out']",
+    "div[data-id^='true_']",
+]
+
+
+def _snapshot_outgoing_counts():
+    """Cuenta mensajes salientes con cada selector + JS. Devuelve dict."""
+    counts = {}
+    for sel in _OUTGOING_MSG_SELECTORS:
+        try:
+            counts[sel] = len(wb.web_browser.find_elements(By.CSS_SELECTOR, sel))
+        except Exception:
+            counts[sel] = -1
+    # Conteo JS como selector adicional estable
+    try:
+        js_count = wb.web_browser.execute_script(
+            "return document.querySelectorAll(\"[data-id^='true_']\").length;"
+        )
+        counts['_js_true_'] = int(js_count) if js_count is not None else -1
+    except Exception:
+        counts['_js_true_'] = -1
+    return counts
+
+
+def _outgoing_increased(before_counts):
+    """True si CUALQUIER selector ve más mensajes salientes que en el snapshot."""
+    try:
+        after = _snapshot_outgoing_counts()
+        for sel, b in before_counts.items():
+            if b >= 0 and after.get(sel, -1) > b:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _chat_input_is_empty():
+    """True si el input del chat está vacío — señal de que el mensaje fue enviado."""
+    try:
+        for selector in [
+            "footer div[contenteditable='true']",
+            "div[contenteditable='true'][data-tab]",
+            "div[aria-placeholder='Escribe un mensaje']",
+        ]:
+            try:
+                el = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
+                text = (el.get_attribute('textContent') or el.text or '').strip()
+                return text == ''
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return False
+
+
+def _msg_is_incoming(el):
+    """True si el elemento es un mensaje ENTRANTE (clase message-in o
+    data-id que empieza con false_)."""
+    try:
+        if 'message-in' in (el.get_attribute('class') or ''):
+            return True
+        if (el.get_attribute('data-id') or '').startswith('false_'):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _photo_preview_open():
+    """True si el overlay de previsualización de imagen sigue abierto.
+    Solo usa indicadores que existen EXCLUSIVAMENTE dentro del preview
+    (el segundo input 'Escribe un mensaje', iconos de edición y el botón
+    de enviar del preview) para no confundirse con la UI normal del chat."""
+    try:
+        if len(wb.web_browser.find_elements(
+                By.CSS_SELECTOR, "div[aria-placeholder*='Escribe un mensaje']")) >= 2:
+            return True
+        for sel in ["span[data-icon='pencil']", "span[data-icon='crop']",
+                    "span[data-icon='scissors']",
+                    "div[aria-placeholder*='Añade']",
+                    "div[aria-placeholder*='Add a caption']",
+                    "span[data-icon='send']",
+                    "span[data-icon='wds-ic-send-filled']"]:
+            if wb.web_browser.find_elements(By.CSS_SELECTOR, sel):
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def match_and_send_photos(photo_entries):
     try:
         print('\n========== MODULE 2: Matching photos with bookings ==========')
@@ -1888,6 +2021,7 @@ def match_and_send_photos(photo_entries):
             # (e.g., maf/csi 16:00/10 where both bookings belong to the same customer)
             sent_wa_links_this_photo = set()
             entry_all_sends_ok = True  # Track if all sends for this entry succeeded
+            already_sent_skips = 0     # envíos que YA constaban en photo_sent_messages.txt
 
             # Match each time to its corresponding sala.
             # Caption "16:00/10 maf/csi" means: 16:00→maf, 16:10→csi
@@ -1958,6 +2092,7 @@ def match_and_send_photos(photo_entries):
                 with open(photo_sent_messages_fp, 'r') as f:
                     if sent_id in f.read():
                         print('  -> Already sent, skipping.')
+                        already_sent_skips += 1
                         continue
 
                 # Note: we no longer permanently skip failed sends.
@@ -1982,7 +2117,12 @@ def match_and_send_photos(photo_entries):
                 with open(photo_thank_you_template_fp, 'r', encoding='utf-8') as f:
                     photo_thank_you_msg = f.read().strip()
 
-                send_success = False
+                # photo_confirmed = la FOTO salió de verdad (la acción irreversible).
+                # El texto de agradecimiento se maneja DESPUÉS, por separado: si el
+                # texto o su verificación fallan, NO se vuelve a pegar la foto.
+                # (Antes un fallo de verificación reintentaba foto+texto completos,
+                # y el cliente recibía la misma foto 2-4 veces.)
+                photo_confirmed = False
                 for send_attempt in range(1, 3):  # Try up to 2 times
                     try:
                         # 1. Copy image to Windows clipboard via PowerShell FIRST
@@ -2106,6 +2246,7 @@ $img.Dispose()
 
                     # Step A: Send the photo (no caption) by clicking the send button in preview
                     print("  -> Sending photo without caption...")
+                    _out_before_photo = _snapshot_outgoing_counts()
                     photo_sent = False
                     for send_sel in ["span[data-icon='send']", "span[data-icon='wds-ic-send-filled']", "div[aria-label='Enviar']"]:
                         try:
@@ -2126,75 +2267,32 @@ $img.Dispose()
                             pass
                         continue
 
-                    # Wait for photo to actually send (preview closes, message appears)
-                    time.sleep(5)
-
-                    # Step B: Now send the thank-you text as a separate message
-                    print("  -> Sending thank-you text as separate message...")
-                    text_sent = False
-                    # Find the chat input box
-                    chat_input_2 = None
-                    for selector in [
-                        "footer div[contenteditable='true']",
-                        "div[contenteditable='true'][data-tab]",
-                        "div[title='Escribe un mensaje aquí']",
-                        "div[title='Escribe un mensaje']",
-                        "div[title='Type a message']",
-                        "div[aria-placeholder='Escribe un mensaje']"
-                    ]:
-                        try:
-                            chat_input_2 = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
+                    # Confirmar que la foto salió: o aparece un mensaje saliente
+                    # nuevo, o el preview se cerró. El click en el botón Enviar de
+                    # WhatsApp es lo que manda la foto y el preview SOLO se cierra
+                    # al enviar (aquí nunca presionamos ESC antes de este chequeo).
+                    for _close_i in range(15):
+                        time.sleep(1)
+                        if _outgoing_increased(_out_before_photo) or not _photo_preview_open():
+                            photo_confirmed = True
                             break
-                        except:
-                            continue
 
-                    if chat_input_2:
-                        pyperclip.copy(photo_thank_you_msg)
-                        time.sleep(0.5)
-                        wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input_2)
-                        time.sleep(0.5)
-                        ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+                    if photo_confirmed:
+                        print('  -> [OK] Photo confirmed sent (new outgoing msg / preview closed).')
+                        break  # NO reintentar: volver a pegar la foto la duplicaría
+
+                    print(f'  -> Photo send NOT confirmed (attempt {send_attempt}), retrying...')
+                    try:
+                        ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
                         time.sleep(2)
-                        # Capture count before sending so we can verify a new message appears
-                        try:
-                            msgs_before = len(wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out'))
-                        except Exception:
-                            msgs_before = 0
-                        # Press Enter to send the text message
-                        ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
-                        time.sleep(3)
-                        text_sent = True
-                        print("  -> Text message sent!")
-                    else:
-                        print("  -> [WARN] Could not find chat input for text message")
-                        try:
-                            msgs_before = len(wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out'))
-                        except Exception:
-                            msgs_before = 0
+                    except:
+                        pass
 
-                    # Verify a NEW outgoing message actually appeared (before/after count)
-                    for check_i in range(10):
-                        try:
-                            if len(wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out')) > msgs_before:
-                                send_success = True
-                                break
-                        except Exception:
-                            pass
-                        time.sleep(2)
-
-                    if send_success:
-                        print('  -> [OK] Photo + text sent successfully!')
-                        time.sleep(3)
-                        break
-                    else:
-                        print(f'  -> Messages NOT confirmed as sent (attempt {send_attempt})')
-                        try:
-                            ActionChains(wb.web_browser).send_keys(Keys.ESCAPE).perform()
-                            time.sleep(2)
-                        except:
-                            pass
-
-                if send_success:
+                if photo_confirmed:
+                    # === REGISTRO INMEDIATO: la foto ya está en el chat del cliente ===
+                    # Se registra ANTES de intentar el texto, para que un fallo en el
+                    # texto o en su verificación jamás provoque reenviar la foto
+                    # (ni en el reintento de este ciclo ni en ciclos futuros).
                     sent_wa_links_this_photo.add(wa_link_normalized)
                     with open(photo_sent_messages_fp, 'a') as f:
                         f.write(sent_id + '\n')
@@ -2219,6 +2317,72 @@ $img.Dispose()
                     else:
                         print(f'  -> wa_link already in pending_replies, skipping duplicate.')
 
+                    # Persistir pending YA: si el ciclo muere más adelante, el cliente
+                    # queda registrado y el Módulo 3 podrá mandar recordatorio/review.
+                    try:
+                        json.dump(pending, open(pending_replies_fp, 'w'), indent=2)
+                    except Exception as _pend_e:
+                        print(f'  [WARN] No se pudo guardar pending_replies: {_pend_e}')
+
+                    # === Step B: texto de agradecimiento (secundario, máx 2 intentos) ===
+                    # Si falla, el cliente ya tiene su foto y está en pending_replies;
+                    # el recordatorio de 48h del Módulo 3 le preguntará por la experiencia.
+                    print("  -> Sending thank-you text as separate message...")
+                    time.sleep(2)
+                    text_confirmed = False
+                    try:
+                        for _text_attempt in (1, 2):
+                            chat_input_2 = None
+                            for selector in [
+                                "footer div[contenteditable='true']",
+                                "div[contenteditable='true'][data-tab]",
+                                "div[title='Escribe un mensaje aquí']",
+                                "div[title='Escribe un mensaje']",
+                                "div[title='Type a message']",
+                                "div[aria-placeholder='Escribe un mensaje']"
+                            ]:
+                                try:
+                                    chat_input_2 = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
+                                    break
+                                except:
+                                    continue
+                            if not chat_input_2:
+                                print("  -> [WARN] Could not find chat input for text message")
+                                break
+
+                            _out_before_text = _snapshot_outgoing_counts()
+                            pyperclip.copy(photo_thank_you_msg)
+                            time.sleep(0.5)
+                            wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input_2)
+                            time.sleep(0.5)
+                            ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+                            time.sleep(2)
+                            ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
+
+                            for _chk in range(8):
+                                time.sleep(1)
+                                if _outgoing_increased(_out_before_text):
+                                    text_confirmed = True
+                                    break
+                            if not text_confirmed:
+                                # Fallback: input vacío = WhatsApp envió el mensaje
+                                time.sleep(1)
+                                if _chat_input_is_empty():
+                                    text_confirmed = True
+                            if text_confirmed:
+                                print("  -> Text message sent!")
+                                break
+                            # Limpiar el input antes de reintentar (evita texto duplicado)
+                            try:
+                                chat_input_2.send_keys(Keys.CONTROL, 'a')
+                                chat_input_2.send_keys(Keys.DELETE)
+                            except Exception:
+                                pass
+                    except Exception as _text_e:
+                        print(f'  -> [WARN] Error enviando texto de agradecimiento: {_text_e}')
+                    if not text_confirmed:
+                        print('  -> [WARN] Texto NO confirmado; la FOTO sí salió (no se reintenta la foto).')
+
                     save_photo_history({
                         'fecha_envio': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                         'dia_reserva': date_str,
@@ -2232,7 +2396,7 @@ $img.Dispose()
                         booking_code=f"{date_str}_{t}_{sala_label}",
                         phone=matched_booking['wa_link'].split('phone=')[-1],
                         status='ENVIADO',
-                        response='sin respuesta',
+                        response='sin respuesta' if text_confirmed else 'sin respuesta (texto no confirmado)',
                         review='-'
                     )
                 else:
@@ -2264,8 +2428,10 @@ $img.Dispose()
                         review='-'
                     )
 
-            # After processing all times for this entry: buffer msg_id for later deletion
-            if entry_all_sends_ok and sent_wa_links_this_photo:
+            # After processing all times for this entry: buffer msg_id for later deletion.
+            # También se borran las fotos cuyo envío YA constaba (already_sent_skips):
+            # dejarlas en el grupo hace que se re-descarguen inútilmente cada ciclo.
+            if entry_all_sends_ok and (sent_wa_links_this_photo or already_sent_skips):
                 msg_id_to_delete = entry.get('msg_id')
                 if msg_id_to_delete:
                     sent_photo_msg_ids.append(msg_id_to_delete)
@@ -2422,7 +2588,14 @@ def _check_recent_outgoing_reactions():
     photo_react = False
     text_react = False
     try:
-        outs = wb.web_browser.find_elements(By.CSS_SELECTOR, "div.message-out")
+        outs = []
+        for _sel in _OUTGOING_MSG_SELECTORS:
+            try:
+                outs = wb.web_browser.find_elements(By.CSS_SELECTOR, _sel)
+            except Exception:
+                outs = []
+            if outs:
+                break
         for msg in outs[-8:]:
             try:
                 if not _message_has_reaction(msg):
@@ -2568,10 +2741,7 @@ def _send_reminder_to_current_chat():
         if not chat_input:
             return False, 'chat_input_not_found'
 
-        try:
-            out_before = len(wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out'))
-        except Exception:
-            out_before = 0
+        out_before = _snapshot_outgoing_counts()
 
         wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input)
         time.sleep(0.5)
@@ -2582,12 +2752,12 @@ def _send_reminder_to_current_chat():
 
         for _ in range(10):
             time.sleep(1)
-            try:
-                out_after = len(wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out'))
-            except Exception:
-                out_after = out_before
-            if out_after > out_before:
+            if _outgoing_increased(out_before):
                 return True, ''
+        # Fallback: input vacío = WhatsApp envió el mensaje
+        time.sleep(1)
+        if _chat_input_is_empty():
+            return True, ''
         return False, 'send_not_confirmed'
     except Exception as e:
         return False, f'exception: {e}'
@@ -2725,8 +2895,14 @@ def check_pending_replies():
                         _msgs_chk = wb.web_browser.find_elements(
                             By.CSS_SELECTOR, "div.message-in, div.message-out"
                         )
+                        if not _msgs_chk:
+                            # Respaldo si WhatsApp renombra las clases: data-id
+                            # estable (false_ = entrante, true_ = saliente)
+                            _msgs_chk = wb.web_browser.find_elements(
+                                By.CSS_SELECTOR, "div[data-id^='false_'], div[data-id^='true_']"
+                            )
                         for _mc in reversed(_msgs_chk[-2:]):
-                            if 'message-in' in (_mc.get_attribute('class') or ''):
+                            if _msg_is_incoming(_mc):
                                 _client_text_reply = True
                                 break
                     except Exception:
@@ -2773,14 +2949,26 @@ def check_pending_replies():
                             entry['reminder_attempts'] = attempts_so_far + 1
                             entry['reminder_last_fail'] = now.isoformat()
                             entry['reminder_last_fail_reason'] = fail_reason
-                            print(f'  -> [FAIL] Recordatorio tras reacción en foto: {fail_reason}. Se reintentará.')
-                            log_action(
-                                booking_code=entry['booking_code'],
-                                phone=entry['wa_link'].split('phone=')[-1],
-                                status='ENVIADO',
-                                response=f'recordatorio FALLIDO reacción en foto ({fail_reason})',
-                                review='-'
-                            )
+                            if fail_reason == 'send_not_confirmed' and entry['reminder_attempts'] >= 2:
+                                entry['reminder_sent'] = True
+                                entry['reminder_timestamp'] = now.isoformat()
+                                print(f'  -> [OK] Recordatorio (reacción foto) asumido enviado (detector roto).')
+                                log_action(
+                                    booking_code=entry['booking_code'],
+                                    phone=entry['wa_link'].split('phone=')[-1],
+                                    status='ENVIADO',
+                                    response='recordatorio enviado reacción en foto (asumido OK — detector roto)',
+                                    review='-'
+                                )
+                            else:
+                                print(f'  -> [FAIL] Recordatorio tras reacción en foto: {fail_reason}. Se reintentará.')
+                                log_action(
+                                    booking_code=entry['booking_code'],
+                                    phone=entry['wa_link'].split('phone=')[-1],
+                                    status='ENVIADO',
+                                    response=f'recordatorio FALLIDO reacción en foto ({fail_reason})',
+                                    review='-'
+                                )
                         updated_pending.append(entry)
                         reaction_handled = True
                         continue
@@ -2836,10 +3024,7 @@ def check_pending_replies():
                                 reminder_msg = f.read().strip()
                             # Count outgoing messages BEFORE sending, so we can
                             # verify a new one actually appeared after Enter.
-                            try:
-                                out_before = len(wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out'))
-                            except:
-                                out_before = 0
+                            out_before = _snapshot_outgoing_counts()
 
                             wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input)
                             time.sleep(0.5)
@@ -2851,11 +3036,7 @@ def check_pending_replies():
                             # Verify the message actually appeared in the chat
                             for _check in range(10):
                                 time.sleep(1)
-                                try:
-                                    out_after = len(wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out'))
-                                except:
-                                    out_after = out_before
-                                if out_after > out_before:
+                                if _outgoing_increased(out_before):
                                     reminder_confirmed = True
                                     break
                             if not reminder_confirmed:
@@ -2881,14 +3062,30 @@ def check_pending_replies():
                         entry['reminder_attempts'] = attempts_so_far + 1
                         entry['reminder_last_fail'] = now.isoformat()
                         entry['reminder_last_fail_reason'] = fail_reason
-                        print(f'  -> Will retry next cycle. Total failed attempts: {entry["reminder_attempts"]}')
-                        log_action(
-                            booking_code=entry['booking_code'],
-                            phone=entry['wa_link'].split('phone=')[-1],
-                            status='ENVIADO',
-                            response=f'recordatorio FALLIDO ({fail_reason})',
-                            review='-'
-                        )
+                        # Si el fallo es send_not_confirmed el mensaje SÍ salió —
+                        # el detector de mensajes-out está roto, no el envío.
+                        # Tras 2 intentos con este fallo lo damos por enviado para
+                        # no bombardear al cliente cada 30 min indefinidamente.
+                        if fail_reason == 'send_not_confirmed' and entry['reminder_attempts'] >= 2:
+                            entry['reminder_sent'] = True
+                            entry['reminder_timestamp'] = now.isoformat()
+                            print(f'  -> [OK] Reminder asumido enviado (detector roto, {entry["reminder_attempts"]} intentos).')
+                            log_action(
+                                booking_code=entry['booking_code'],
+                                phone=entry['wa_link'].split('phone=')[-1],
+                                status='ENVIADO',
+                                response='recordatorio enviado (asumido OK — detector roto)',
+                                review='-'
+                            )
+                        else:
+                            print(f'  -> Will retry next cycle. Total failed attempts: {entry["reminder_attempts"]}')
+                            log_action(
+                                booking_code=entry['booking_code'],
+                                phone=entry['wa_link'].split('phone=')[-1],
+                                status='ENVIADO',
+                                response=f'recordatorio FALLIDO ({fail_reason})',
+                                review='-'
+                            )
                     updated_pending.append(entry)
                     continue
 
@@ -2911,6 +3108,11 @@ def check_pending_replies():
                 all_msgs = wb.web_browser.find_elements(
                     By.CSS_SELECTOR, "div.message-in, div.message-out"
                 )
+                if not all_msgs:
+                    # Respaldo si WhatsApp renombra las clases: data-id estable
+                    all_msgs = wb.web_browser.find_elements(
+                        By.CSS_SELECTOR, "div[data-id^='false_'], div[data-id^='true_']"
+                    )
                 if len(all_msgs) == 0:
                     updated_pending.append(entry)
                     continue
@@ -2926,7 +3128,7 @@ def check_pending_replies():
                 last_msg = None
                 for _m in reversed(all_msgs[-2:]):
                     try:
-                        if 'message-in' in (_m.get_attribute('class') or ''):
+                        if _msg_is_incoming(_m):
                             last_msg = _m
                             break
                     except Exception:
@@ -2938,21 +3140,42 @@ def check_pending_replies():
                     updated_pending.append(entry)
                     continue
 
-                # Intentar extraer el texto real del mensaje (no metadata/timestamps)
+                # Extraer el texto del mensaje del cliente.
+                # Primero JS textContent (más fiable ante cambios de clase de WA),
+                # luego selectores CSS, luego get_text como último recurso.
                 reply_text = ''
                 try:
-                    span = last_msg.find_element(
-                        By.CSS_SELECTOR,
-                        "span.selectable-text, span[class*='selectable-text'], div[class*='copyable-text'] span"
+                    _js_text = wb.web_browser.execute_script(
+                        "return arguments[0].textContent || arguments[0].innerText || '';",
+                        last_msg
                     )
-                    reply_text = (span.get_attribute('innerText') or span.text or '').strip()
+                    if _js_text:
+                        # Filtrar líneas que son solo metadata de WA (hora, fecha, etc.)
+                        _lines = [l.strip() for l in _js_text.splitlines() if l.strip()]
+                        _filtered = [
+                            l for l in _lines
+                            if not re.match(
+                                r'^(\d{1,2}:\d{2}|hoy|ayer|lunes|martes|miércoles|jueves|viernes|sábado|domingo|\d{1,2}/\d{1,2}/\d{2,4})$',
+                                l, re.IGNORECASE
+                            )
+                        ]
+                        reply_text = ' '.join(_filtered).strip()
                 except Exception:
                     pass
+                if not reply_text:
+                    try:
+                        span = last_msg.find_element(
+                            By.CSS_SELECTOR,
+                            "span.selectable-text, span[class*='selectable-text'], div[class*='copyable-text'] span"
+                        )
+                        reply_text = (span.get_attribute('innerText') or span.text or '').strip()
+                    except Exception:
+                        pass
                 if not reply_text:
                     reply_text = wb.get_text(last_msg)
 
                 if not reply_text or reply_text.strip() == '':
-                    print('  Empty reply, keeping.')
+                    print('  Empty reply text after all extraction attempts, keeping.')
                     updated_pending.append(entry)
                     continue
 
@@ -3064,10 +3287,7 @@ $img.Dispose()
                             pyperclip.copy(review_msg)
                             ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
                             time.sleep(1)
-                            try:
-                                _out_before_rev = len(wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out'))
-                            except Exception:
-                                _out_before_rev = 0
+                            _out_before_rev = _snapshot_outgoing_counts()
                             # Try send button first; fall back to Enter
                             _rev_sent = False
                             for _sel in ["span[data-icon='send']", "span[data-icon='wds-ic-send-filled']", "button[aria-label='Enviar']", "div[aria-label='Enviar']"]:
@@ -3084,12 +3304,9 @@ $img.Dispose()
                             # Verify
                             _rev_confirmed = False
                             for _chk in range(10):
-                                try:
-                                    if len(wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out')) > _out_before_rev:
-                                        _rev_confirmed = True
-                                        break
-                                except Exception:
-                                    pass
+                                if _outgoing_increased(_out_before_rev):
+                                    _rev_confirmed = True
+                                    break
                                 time.sleep(1)
                             if _rev_confirmed:
                                 print('  -> Review text sent!')
@@ -3128,10 +3345,7 @@ $img.Dispose()
                         pyperclip.copy(neg_msg)
                         ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
                         time.sleep(1)
-                        try:
-                            _out_before_neg = len(wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out'))
-                        except Exception:
-                            _out_before_neg = 0
+                        _out_before_neg = _snapshot_outgoing_counts()
                         # Try send button first; fall back to Enter
                         _neg_sent = False
                         for _sel in ["span[data-icon='send']", "span[data-icon='wds-ic-send-filled']", "button[aria-label='Enviar']", "div[aria-label='Enviar']"]:
@@ -3148,12 +3362,9 @@ $img.Dispose()
                         # Verify
                         _neg_confirmed = False
                         for _chk in range(10):
-                            try:
-                                if len(wb.web_browser.find_elements(By.CSS_SELECTOR, 'div.message-out')) > _out_before_neg:
-                                    _neg_confirmed = True
-                                    break
-                            except Exception:
-                                pass
+                            if _outgoing_increased(_out_before_neg):
+                                _neg_confirmed = True
+                                break
                             time.sleep(1)
                         if _neg_confirmed:
                             print('  Negative response sent.')
@@ -3708,6 +3919,38 @@ def daily_cleanup():
 
 
 # ============================================================
+# ============================================================
+# LOCK FILE — impide que watchdog + run_modo_continuo corran
+# dos instancias simultáneas (causa de fotos duplicadas).
+# ============================================================
+_lock_fp = os.path.join(sys.path[0], 'data', 'bot.lock')
+
+def _acquire_lock():
+    if os.path.exists(_lock_fp):
+        try:
+            with open(_lock_fp, 'r') as _lf:
+                _pid = int(_lf.read().strip())
+            _result = subprocess.run(
+                ['tasklist', '/FI', f'PID eq {_pid}', '/NH'],
+                capture_output=True, text=True, timeout=5
+            )
+            if str(_pid) in _result.stdout:
+                print(f'[LOCK] Otra instancia ya corre (PID {_pid}). Saliendo.')
+                sys.exit(0)
+        except Exception:
+            pass
+        try:
+            os.remove(_lock_fp)
+        except Exception:
+            pass
+    os.makedirs(os.path.dirname(_lock_fp), exist_ok=True)
+    with open(_lock_fp, 'w') as _lf:
+        _lf.write(str(os.getpid()))
+    atexit.register(lambda: os.path.exists(_lock_fp) and os.remove(_lock_fp))
+
+_acquire_lock()
+
+
 # MAIN — Test flow
 # ============================================================
 
