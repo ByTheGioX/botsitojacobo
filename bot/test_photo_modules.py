@@ -28,6 +28,7 @@ import atexit
 import signal
 import traceback
 import shutil
+import unicodedata
 
 
 # ============================================================
@@ -2763,7 +2764,70 @@ def _send_reminder_to_current_chat():
         return False, f'exception: {e}'
 
 
-def classify_reply_with_ai(reply_text):
+def _strip_accents(text):
+    """Quita acentos para comparar palabras clave sin depender de tildes."""
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', text)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+
+def _classify_by_keywords(reply_text):
+    """Clasificador local por palabras clave. NO depende de ninguna API externa,
+    así que sigue funcionando aunque OpenRouter esté caído o la key expire.
+    Devuelve 'POSITIVO', 'NEGATIVO' o None (cuando no hay señal clara o es mixta)."""
+    t = _strip_accents((reply_text or '').lower())
+
+    positive_words = [
+        # Español
+        'gracias', 'genial', 'increible', 'espectacular', 'excelente',
+        'estupendo', 'estupenda', 'fantastico', 'fantastica', 'maravilloso',
+        'maravillosa', 'encanto', 'encanta', 'encantado', 'encantados',
+        'encantada', 'encantadas', 'nos gusto', 'me gusto', 'gusto mucho',
+        'muy buena', 'muy bueno', 'buenisimo', 'buenisima', 'super',
+        'perfecto', 'perfecta', 'recomendable', 'recomiendo', 'recomendado',
+        'lo pasamos', 'pasamos genial', 'pasamos muy bien', 'divertido',
+        'divertida', 'divertidisimo', 'chulo', 'chula', 'guay', 'brutal',
+        'bestial', 'volveremos', 'repetiremos', 'lo mejor', 'una pasada',
+        # Inglés
+        'great', 'thanks', 'thank you', 'thx', 'thanx', 'amazing', 'awesome',
+        'loved', 'love', 'perfect', 'excellent', 'wonderful', 'fantastic',
+        'good', 'nice', 'best', 'enjoyed', 'enjoy', 'fun', 'brilliant', 'cool',
+    ]
+    negative_words = [
+        # Español
+        'horrible', 'terrible', 'pesimo', 'pesima', 'decepcion',
+        'decepcionado', 'decepcionados', 'decepcionante', 'aburrido',
+        'aburrida', 'aburridisimo', 'no nos gusto', 'no me gusto',
+        'no recomiendo', 'una mierda', 'estafa', 'perdida de tiempo',
+        'lo peor', 'muy malo', 'muy mala', 'una porqueria', 'fatal',
+        # Inglés
+        'awful', 'worst', 'boring', 'disappointing', 'disappointed',
+        'waste of time', 'terrible', 'horrible', 'bad experience',
+    ]
+
+    neg = any(w in t for w in negative_words)
+
+    # Para detectar lo positivo, primero borramos las frases negativas del texto.
+    # Así "no nos gusto" (negativo) no dispara un falso positivo por contener la
+    # subcadena "nos gusto". Tras quitarlas, buscamos señales positivas reales.
+    t_pos = t
+    for w in negative_words:
+        t_pos = t_pos.replace(w, ' ')
+    pos = any(w in t_pos for w in positive_words)
+
+    if neg and not pos:
+        return 'NEGATIVO'
+    if pos and not neg:
+        return 'POSITIVO'
+    # Mixto real (elogio + queja en el mismo mensaje) o sin señal → no decidir aquí.
+    return None
+
+
+def _classify_via_openrouter(reply_text):
+    """Llama a OpenRouter. Devuelve 'POSITIVO'/'NEGATIVO'/'NEUTRAL' si la API
+    responde, o None si la API falla (key vencida, sin red, timeout, etc.).
+    Devolver None es CLAVE: permite distinguir "fallo de API" de un NEUTRAL real."""
     try:
         url = "https://openrouter.ai/api/v1/chat/completions"
         payload = json.dumps({
@@ -2801,7 +2865,32 @@ def classify_reply_with_ai(reply_text):
 
     except Exception as e:
         print(f'  [ERROR] OpenRouter API: {e}')
+        return None  # None = fallo de API (NO un NEUTRAL real)
+
+
+def classify_reply_with_ai(reply_text):
+    """Clasifica la respuesta del cliente con defensa en profundidad:
+    1) Clasificador local por keywords (siempre disponible).
+    2) IA (OpenRouter) para casos ambiguos.
+    Si la IA falla, las keywords salvan los casos obvios. Si la IA dice NEUTRAL
+    pero las keywords son claras, mandan las keywords. Así un 'increíble, nos
+    encantó' SIEMPRE recibe su review aunque la API esté caída."""
+    kw = _classify_by_keywords(reply_text)
+    ai = _classify_via_openrouter(reply_text)
+
+    if ai is None:
+        # API caída -> confiar en keywords; si no son concluyentes, NEUTRAL (revisión manual).
+        if kw:
+            print(f'  [FALLBACK] API caida -> clasificacion por keywords: {kw}')
+            return kw
+        print('  [FALLBACK] API caida y keywords no concluyente -> NEUTRAL (revision manual)')
         return 'NEUTRAL'
+
+    # La IA respondió. Si dice NEUTRAL pero las keywords son claras, confiar en keywords.
+    if ai == 'NEUTRAL' and kw:
+        print(f'  [OVERRIDE] IA dijo NEUTRAL pero keywords es claro: {kw}')
+        return kw
+    return ai
 
 
 def check_pending_replies():
