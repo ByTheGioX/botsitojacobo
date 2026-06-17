@@ -3196,15 +3196,19 @@ def check_pending_replies():
                     print('  Invalid chat link, removing.')
                     continue
 
+                time.sleep(2)  # wait for messages to render after navigation
                 all_msgs = wb.web_browser.find_elements(
                     By.CSS_SELECTOR, "div.message-in, div.message-out"
                 )
                 if not all_msgs:
-                    # Respaldo si WhatsApp renombra las clases: data-id estable
                     all_msgs = wb.web_browser.find_elements(
                         By.CSS_SELECTOR, "div[data-id^='false_'], div[data-id^='true_']"
                     )
+                if not all_msgs:
+                    all_msgs = wb.web_browser.find_elements(By.CSS_SELECTOR, "div[data-id]")
+                print(f'  [{entry["booking_code"]}] msgs encontrados: {len(all_msgs)} | reminder_sent={reminder_sent}')
                 if len(all_msgs) == 0:
+                    print(f'  [DEBUG] 0 mensajes en el chat — DOM no cargó o selectores rotos. Reintentando próximo ciclo.')
                     updated_pending.append(entry)
                     continue
 
