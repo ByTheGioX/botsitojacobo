@@ -2983,6 +2983,7 @@ def check_pending_replies():
                     # mandarle la review. Detectamos respuesta mirando los 2 últimos
                     # mensajes (misma lógica que la rama de clasificación de más abajo).
                     try:
+                        time.sleep(2)  # esperar a que los mensajes carguen tras navegar
                         _msgs_chk = wb.web_browser.find_elements(
                             By.CSS_SELECTOR, "div.message-in, div.message-out"
                         )
@@ -2992,12 +2993,20 @@ def check_pending_replies():
                             _msgs_chk = wb.web_browser.find_elements(
                                 By.CSS_SELECTOR, "div[data-id^='false_'], div[data-id^='true_']"
                             )
+                        if not _msgs_chk:
+                            # Último respaldo: TODOS los data-id (como Módulo 1, que SÍ
+                            # funciona). _msg_is_incoming filtra por prefijo false_.
+                            _msgs_chk = wb.web_browser.find_elements(
+                                By.CSS_SELECTOR, "div[data-id]"
+                            )
                         for _mc in reversed(_msgs_chk[-2:]):
                             if _msg_is_incoming(_mc):
                                 _client_text_reply = True
                                 break
-                    except Exception:
-                        pass
+                        print(f'  [{entry["booking_code"]}] reacc-check: {len(_msgs_chk)} msgs, '
+                              f'cliente_respondio={_client_text_reply}')
+                    except Exception as _ce:
+                        print(f'  [WARN] check respuesta cliente fallo: {_ce}')
 
                     photo_react, text_react = _check_recent_outgoing_reactions()
 
