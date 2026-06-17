@@ -1,1 +1,37 @@
-[LOCK] Otra instancia ya corre (PID 8904). Saliendo.
+
+============================================================
+  TEST PHOTO MODULES - Script independiente
+============================================================
+
+Starting browser...
+  [Browser] ChromeDriver: C:\Users\AI\.wdm\drivers\chromedriver\win64\149.0.7827.155\chromedriver-win32\chromedriver.exe
+[04:40:44] [MODO TEST] Proteccion de horario desactivada.
+
+============================================================
+  CICLO #1 — 2026-06-17 04:40:44
+============================================================
+Abriendo WhatsApp Web...
+Esperando conexion de WhatsApp (max 60s)...
+  WhatsApp conectado OK (0s)
+
+--- Running all photo modules ---
+
+
+========== MODULE 4: Daily cleanup ==========
+========== MODULE 4 DONE ==========
+--- Module 1: Scraping photo group ---
+  Searching for group: "Parapark Fotos 2026"
+  Search box clicked: False
+  Group clicked: True
+  Waiting for chat to load...
+
+[cleanup] Señal recibida (2). Cerrando ordenadamente...
+
+[cleanup] Cerrando navegador (signal 2)...
+
+[cleanup] Señal recibida (2). Cerrando ordenadamente...
+  (could not scroll up, continuing with visible messages)
+
+  --- DEBUG: Testing CSS selectors ---
+
+[cleanup] Señal recibida (2). Cerrando ordenadamente...
