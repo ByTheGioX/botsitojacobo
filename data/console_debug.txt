@@ -5,15 +5,7 @@
 
 Starting browser...
   [Browser] ChromeDriver: C:\Users\AI\.wdm\drivers\chromedriver\win64\149.0.7827.155\chromedriver-win32\chromedriver.exe
-[05:04:39] [MODO TEST] Proteccion de horario desactivada.
-
-============================================================
-  CICLO #1 — 2026-06-17 05:04:39
-============================================================
-Abriendo WhatsApp Web...
-
-[cleanup] Señal recibida (2). Cerrando ordenadamente...
-
-[cleanup] Cerrando navegador (signal 2)...
-
-[cleanup] Señal recibida (2). Cerrando ordenadamente...
+  [Browser] Chrome version mismatch detected — retrying with fresh driver...
+  [Browser] WDM cache cleared — downloading fresh ChromeDriver
+  [Browser] ChromeDriver: C:\Users\AI\.wdm\drivers\chromedriver\win64\149.0.7827.155\chromedriver-win32\chromedriver.exe
+^C
