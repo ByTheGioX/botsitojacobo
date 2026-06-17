@@ -5,32 +5,15 @@
 
 Starting browser...
   [Browser] ChromeDriver: C:\Users\AI\.wdm\drivers\chromedriver\win64\149.0.7827.155\chromedriver-win32\chromedriver.exe
-  [Browser] Chrome version mismatch detected — retrying with fresh driver...
-  [Browser] Could not clear WDM cache: [WinError 5] Access is denied: 'C:\\Users\\AI\\.wdm\\drivers\\chromedriver\\win64\\149.0.7827.155\\chromedriver-win32\\chromedriver.exe'
-  [Browser] ChromeDriver: C:\Users\AI\.wdm\drivers\chromedriver\win64\149.0.7827.155\chromedriver-win32\chromedriver.exe
-Message: session not created: Chrome failed to start: crashed.
-  (session not created: DevToolsActivePort file doesn't exist)
-  (The process started from chrome location C:\Program Files\Google\Chrome\Application\chrome.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.); For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#sessionnotcreatedexception
-Stacktrace:
-	chromedriver!GetHandleVerifier [0x64a543+103f3]
-	chromedriver!GetHandleVerifier [0x64a584+10434]
-	chromedriver!(No symbol) [0x44a700]
-	chromedriver!(No symbol) [0x4806eb]
-	chromedriver!(No symbol) [0x47b5a0]
-	chromedriver!(No symbol) [0x4c1dcf]
-	chromedriver!(No symbol) [0x4c15e7]
-	chromedriver!(No symbol) [0x4b5e66]
-	chromedriver!(No symbol) [0x489159]
-	chromedriver!(No symbol) [0x489f24]
-	chromedriver!GetHandleVerifier [0x8d4bba+29aa6a]
-	chromedriver!GetHandleVerifier [0x8d0119+295fc9]
-	chromedriver!GetHandleVerifier [0x8f103e+2b6eee]
-	chromedriver!GetHandleVerifier [0x6637f6+296a6]
-	chromedriver!GetHandleVerifier [0x66a91d+307cd]
-	chromedriver!GetHandleVerifier [0x652d18+18bc8]
-	chromedriver!GetHandleVerifier [0x652ec5+18d75]
-	chromedriver!GetHandleVerifier [0x63c05f+1f0f]
-	KERNEL32!BaseThreadInitThunk [0x747762c4+24]
-	ntdll!RtlSubscribeWnfStateChangeNotification [0x77420aa9+439]
-	ntdll!RtlSubscribeWnfStateChangeNotification [0x77420a74+404]
+[05:04:39] [MODO TEST] Proteccion de horario desactivada.
 
+============================================================
+  CICLO #1 — 2026-06-17 05:04:39
+============================================================
+Abriendo WhatsApp Web...
+
+[cleanup] Señal recibida (2). Cerrando ordenadamente...
+
+[cleanup] Cerrando navegador (signal 2)...
+
+[cleanup] Señal recibida (2). Cerrando ordenadamente...
