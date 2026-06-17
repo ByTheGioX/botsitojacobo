@@ -2075,7 +2075,9 @@ def match_and_send_photos(photo_entries):
                                 break
 
                 if not matched_booking:
-                    print(f'  -> No matching booking found.')
+                    print(f'  -> No matching booking found. Buscando: day={repr(day_num)} time={repr(t)} places={time_target_places}')
+                    for b in bookings:
+                        print(f'     Turitop: day={repr(b["booking_day"])} time={repr(b["booking_time"])} place={repr(b["booking_place"])}')
                     continue
 
                 if not matched_booking.get('wa_link'):
