@@ -67,6 +67,7 @@ photo_thank_you_template_fp = os.path.join(sys.path[0], 'data', 'photo_thank_you
 positive_review_template_fp = os.path.join(sys.path[0], 'data', 'positive_review_template.txt')
 negative_review_template_fp = os.path.join(sys.path[0], 'data', 'negative_review_template.txt')
 bad_caption_ids_fp = os.path.join(sys.path[0], 'data', 'bad_caption_replied_ids.json')
+mislabeled_ids_fp = os.path.join(sys.path[0], 'data', 'mislabeled_replied_ids.json')
 failed_sends_fp = os.path.join(sys.path[0], 'data', 'failed_photo_sends.json')
 reminder_template_fp = os.path.join(sys.path[0], 'data', 'reminder_template.txt')
 neutral_replies_fp = os.path.join(sys.path[0], 'data', 'neutral_replies.json')
@@ -1977,6 +1978,116 @@ def _photo_preview_open():
     return False
 
 
+def _open_photo_group():
+    """Abre el grupo de fotos buscandolo por nombre. Devuelve True si lo abrio.
+    Replica la apertura del Modulo 1 sin tocarlo."""
+    try:
+        search_clicked = wb.css_click_with_timer("div[contenteditable='true'][data-tab='3']", 15)
+        if not search_clicked:
+            search_clicked = wb.css_click_with_timer("div[role='textbox'][data-tab='3']", 10)
+        if not search_clicked:
+            search_clicked = wb.x_click_with_timer("//div[@data-tab='3']", 10)
+        time.sleep(2)
+        search_box = None
+        for selector, by_type in [
+            ("div[contenteditable='true'][data-tab='3']", By.CSS_SELECTOR),
+            ("div[role='textbox'][data-tab='3']", By.CSS_SELECTOR),
+            ("input[type='text']", By.CSS_SELECTOR),
+        ]:
+            try:
+                search_box = wb.web_browser.find_element(by_type, selector)
+                if search_box:
+                    break
+            except Exception:
+                continue
+        if not search_box:
+            print('  [WARN] _open_photo_group: no encontre caja de busqueda.')
+            return False
+        try:
+            search_box.clear()
+        except Exception:
+            pass
+        search_box.send_keys(photo_group_name)
+        time.sleep(3)
+        if not wb.x_click_with_timer(f"//span[@title='{photo_group_name}']", 15):
+            print('  [WARN] _open_photo_group: no encontre el grupo en resultados.')
+            return False
+        time.sleep(5)
+        return True
+    except Exception as e:
+        print(f'  [WARN] _open_photo_group: {e}')
+        return False
+
+
+def _warn_mislabeled_photos_in_group(mislabeled):
+    """Avisa EN EL GRUPO sobre fotos con formato valido pero sin reserva
+    coincidente en Turitop (sala/hora mal etiquetada). Envia un mensaje
+    NORMAL al grupo (NO usa 'responder', que es fragil y dejo de funcionar)
+    incluyendo el caption de la foto para que el staff la identifique.
+    Avisa una sola vez por foto (dedup en mislabeled_replied_ids.json)."""
+    try:
+        already = _load_json_set(mislabeled_ids_fp)
+        pendientes = [m for m in mislabeled
+                      if m.get('msg_id') and m['msg_id'] not in already]
+        if not pendientes:
+            return
+        print(f'\n--- Avisando {len(pendientes)} foto(s) mal etiquetada(s) en el grupo ---')
+        if not _open_photo_group():
+            print('  [WARN] No pude abrir el grupo para avisar; se reintenta el proximo ciclo.')
+            return
+        for m in pendientes:
+            label = m.get('caption_label', '')
+            msg = (
+                f"⚠️ No pude enviar esta foto ({label}): la sala u hora no "
+                f"coincide con ninguna reserva en el sistema.\n\n"
+                f"Por favor *elimínala* y vuelve a enviarla con los datos "
+                f"correctos, para no enviarla a la persona equivocada.\n\n"
+                f"Salas válidas: 4e, csi, maf, tri"
+            )
+            sent_ok = False
+            try:
+                chat_input = None
+                for selector in [
+                    "footer div[contenteditable='true']",
+                    "div[contenteditable='true'][data-tab]",
+                    "div[aria-placeholder='Escribe un mensaje']",
+                ]:
+                    try:
+                        chat_input = wb.web_browser.find_element(By.CSS_SELECTOR, selector)
+                        break
+                    except Exception:
+                        continue
+                if not chat_input:
+                    print('  [WARN] aviso: no encontre el input del grupo.')
+                    break
+                _out_before = _snapshot_outgoing_counts()
+                pyperclip.copy(msg)
+                time.sleep(0.5)
+                wb.web_browser.execute_script("arguments[0].focus(); arguments[0].click();", chat_input)
+                time.sleep(0.5)
+                ActionChains(wb.web_browser).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+                time.sleep(1.5)
+                ActionChains(wb.web_browser).send_keys(Keys.ENTER).perform()
+                for _chk in range(8):
+                    time.sleep(1)
+                    if _outgoing_increased(_out_before):
+                        sent_ok = True
+                        break
+                if not sent_ok and _chat_input_is_empty():
+                    sent_ok = True
+            except Exception as _we:
+                print(f'  [WARN] aviso mal-etiquetado fallo: {_we}')
+            if sent_ok:
+                print(f'  -> Aviso enviado al grupo para: {label}')
+                already.add(m['msg_id'])
+                _save_json_set(mislabeled_ids_fp, already)
+            else:
+                print(f'  -> [WARN] No se confirmo el aviso para: {label} (se reintenta).')
+            time.sleep(1)
+    except Exception as e:
+        print(f'  [ERROR] _warn_mislabeled_photos_in_group: {e}')
+
+
 def match_and_send_photos(photo_entries):
     try:
         print('\n========== MODULE 2: Matching photos with bookings ==========')
@@ -2009,6 +2120,10 @@ def match_and_send_photos(photo_entries):
             json.dump([], open(pending_replies_fp, 'w'), indent=2)
             pending = []
 
+        # Fotos con formato valido pero sin reserva coincidente en Turitop
+        # (sala/hora mal etiquetada). Se avisa al grupo al final del modulo.
+        mislabeled_photos = []
+
         for entry in photo_entries:
           try:
             date_str = entry['date']
@@ -2022,6 +2137,7 @@ def match_and_send_photos(photo_entries):
             # (e.g., maf/csi 16:00/10 where both bookings belong to the same customer)
             sent_wa_links_this_photo = set()
             entry_all_sends_ok = True  # Track if all sends for this entry succeeded
+            entry_had_any_match = False  # ¿algun time de esta foto encontro reserva?
             already_sent_skips = 0     # envíos que YA constaban en photo_sent_messages.txt
 
             # Match each time to its corresponding sala.
@@ -2079,6 +2195,8 @@ def match_and_send_photos(photo_entries):
                     for b in bookings:
                         print(f'     Turitop: day={repr(b["booking_day"])} time={repr(b["booking_time"])} place={repr(b["booking_place"])}')
                     continue
+
+                entry_had_any_match = True  # esta foto SI coincide con una reserva real
 
                 if not matched_booking.get('wa_link'):
                     print('  -> Booking found but no WhatsApp link.')
@@ -2439,6 +2557,16 @@ $img.Dispose()
                 if msg_id_to_delete:
                     sent_photo_msg_ids.append(msg_id_to_delete)
                     print(f'\n  All sends OK for this photo. Queued for deletion after replies are processed.')
+
+            # Foto bien escrita pero sin reserva coincidente: SOLO si Turitop
+            # devolvio reservas ese dia (len(bookings) > 0). Si devolvio 0
+            # (deslogueado / sin reservas) NO se considera mal etiquetada, para
+            # no dar avisos falsos cuando el problema es de Turitop.
+            if not entry_had_any_match and len(bookings) > 0:
+                mislabeled_photos.append({
+                    'msg_id': entry.get('msg_id'),
+                    'caption_label': f"{date_str} {'/'.join(entry.get('times', []))} {sala_label}",
+                })
           except Exception as entry_err:
             print(f'  -> [ERROR] Failed processing entry: {entry_err}')
             print(f'     Continuing with next entry...')
@@ -2450,6 +2578,11 @@ $img.Dispose()
         json.dump(pending, open(pending_replies_fp, 'w'), indent=2)
         print(f'\n========== MODULE 2 DONE: {len(pending)} pending replies ==========')
         print(f'  Photos queued for deletion: {len(sent_photo_msg_ids)}')
+
+        # Avisar al grupo de fotos mal etiquetadas (sala/hora sin reserva).
+        if mislabeled_photos:
+            _warn_mislabeled_photos_in_group(mislabeled_photos)
+
         return sent_photo_msg_ids
 
     except Exception as e:
